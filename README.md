@@ -6,7 +6,7 @@ You'll find various API endpoints here, built with different technologies and se
 
 ___
 ## How You Can Use These Endpoints
-Feel free to explore, integrate, and utilize these endpoints in your own projects! They are completely open source under the MIT License (a common open-source license that allows broad use with attribution). Whether you're building a new application, testing a concept, or just need a quick data source, you're welcome to use what you find here.
+Feel free to explore, integrate, and utilize these endpoints in your own projects! They are completely open for use. Whether you're building a new application, testing a concept, or just need a quick data source, you're welcome to use what you find here.
 
 ## Contribute and Collaborate
 This is a learning journey for me, and I'd love for you to be a part of it!
