@@ -11,13 +11,13 @@ Feel free to explore, integrate, and utilize these endpoints in your own project
 ## Contribute and Collaborate
 This is a learning journey for me, and I'd love for you to be a part of it!
 
-....* Fork the repository: Make your own copy and experiment.
+- Fork the repository: Make your own copy and experiment.
 
-....* Suggest improvements: Open an issue to share your ideas or point out areas for refinement.
+- Suggest improvements: Open an issue to share your ideas or point out areas for refinement.
 
-....* Submit pull requests: If you've improved an endpoint, fixed a bug, or added something new, please contribute back!
+- Submit pull requests: If you've improved an endpoint, fixed a bug, or added something new, please contribute back!
 
-....* Offer pointers: Since I'm learning, I highly value feedback. If you have advice, best practices, or better ways to approach something, please share your knowledge in the issues or pull request comments. All constructive criticism is welcome.
+- Offer pointers: Since I'm learning, I highly value feedback. If you have advice, best practices, or better ways to approach something, please share your knowledge in the issues or pull request comments. All constructive criticism is welcome.
 
 ___
 ### Attribution
