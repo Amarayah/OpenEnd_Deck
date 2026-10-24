@@ -1,0 +1,2002 @@
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lesson Board">
+<meta name="theme-color" content="#141922">
+<title>Lesson Board</title>
+<style>
+/* Layout: studio chrome around a letterboxed 16:9 board. Tools left, ink + record dock bottom. */
+:root{
+  --chrome:#141922;      /* app frame */
+  --panel:#1d2430;       /* bars and sheets */
+  --panel-2:#262f3e;     /* raised controls */
+  --line:#344155;        /* hairlines */
+  --text:#e8ecf3;
+  --muted:#97a3b8;
+  --accent:#f4c655;      /* chalk yellow: active tool, focus */
+  --accent-ink:#1b1606;
+  --rec:#ff4b4b;         /* recording only */
+  --ok:#4ade80;
+  --radius:10px;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--chrome);color:var(--text);font:14px/1.4 var(--ui);
+  overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+input,textarea,select{-webkit-user-select:text;user-select:text;font:inherit;color:inherit}
+button{font:inherit;color:inherit;touch-action:manipulation}
+[hidden]{display:none!important}
+#app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+ 
+/* top bar */
+#top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);min-width:0}
+#top.recording{box-shadow:inset 0 -3px 0 var(--rec)}
+#boardName{min-width:0;flex:0 1 260px;background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 8px;font-weight:650;font-size:15px}
+#boardName:hover,#boardName:focus{border-color:var(--line);outline:none;background:var(--chrome)}
+#saveState{color:var(--muted);font-size:12px;white-space:nowrap}
+#saveState.warn{color:var(--accent)}
+.spacer{flex:1}
+.grp{display:flex;align-items:center;gap:2px;background:var(--chrome);border:1px solid var(--line);border-radius:var(--radius);padding:2px}
+#pageLabel{min-width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+ 
+.ib{display:inline-grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;cursor:pointer}
+.ib:hover{background:var(--panel-2)}
+.ib:disabled{opacity:.35;cursor:default;background:transparent}
+.ib svg,.btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel-2);cursor:pointer;white-space:nowrap;font-weight:550}
+.btn:hover{border-color:#4a5a73}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:#ffb4b4}
+.btn.armed{background:#5a1d1d;border-color:var(--rec);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.btn svg{width:18px;height:18px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+ 
+/* main */
+#main{display:flex;min-height:0}
+#tools{display:flex;flex-direction:column;gap:4px;padding:10px 8px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto}
+#tools .ib{width:46px;height:46px}
+#tools .ib[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+#tools hr{width:100%;border:0;border-top:1px solid var(--line);margin:4px 0}
+#stage{position:relative;flex:1;min-width:0;display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(circle at 50% 40%, #1b2230, var(--chrome) 70%)}
+#view{display:block;touch-action:none;border-radius:4px;box-shadow:0 1px 0 #ffffff12, 0 18px 50px #00000080;background:#fff;cursor:crosshair}
+#textEditor{position:absolute;z-index:5;min-width:160px;min-height:1.4em;padding:0 4px;margin:0;resize:none;overflow:hidden;white-space:pre;
+  background:rgba(255,255,255,.55);border:2px dashed var(--accent);border-radius:4px;outline:none;line-height:1.25;
+  font-weight:600;font-family:ui-rounded,"SF Pro Rounded","Nunito",system-ui,sans-serif}
+#textDone{position:absolute;z-index:6}
+#codeBar{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 10px 30px #0009;width:max-content;max-width:calc(100% - 20px)}
+#codeBar .btn{height:36px;padding:0 10px}
+#codeBar .ib{width:36px;height:36px}
+#cbState{padding:0 4px;white-space:nowrap}
+#codeSelBox{position:absolute;z-index:4;border:2px dashed var(--accent);border-radius:12px;pointer-events:none}
+.codearea{width:100%;min-height:240px;max-height:44vh;resize:vertical;border-radius:10px;border:1px solid var(--line);background:#0f1218;color:#e4e8f0;
+  font:14px/1.5 var(--mono);padding:12px;white-space:pre;overflow:auto;tab-size:4;outline:none}
+.codearea:focus{border-color:var(--accent)}
+#countdown{position:absolute;inset:0;display:grid;place-items:center;font:800 160px/1 var(--ui);color:#fff;
+  text-shadow:0 6px 40px #000;background:#0006;z-index:8;font-variant-numeric:tabular-nums}
+#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:#000c;color:#fff;padding:8px 14px;border-radius:999px;
+  font-size:13px;z-index:7;pointer-events:none;max-width:90%;text-align:center}
+#banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:7;background:#3b2f0e;border:1px solid var(--accent);color:#fde7a8;
+  padding:8px 14px;border-radius:var(--radius);font-size:13px;max-width:92%}
+ 
+/* bottom bar */
+#props{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
+.swatches{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{outline:3px solid var(--accent);outline-offset:2px}
+#customColor{width:34px;height:34px;border:0;padding:0;background:none;border-radius:50%;cursor:pointer}
+.sizewrap{display:flex;align-items:center;gap:8px}
+.sizewrap label{color:var(--muted);font-size:12px}
+#size{width:130px;accent-color:var(--accent)}
+#sizeDot{width:34px;height:34px;display:grid;place-items:center}
+#sizeDot i{display:block;border-radius:50%;background:var(--text)}
+.switch{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;cursor:pointer}
+.switch input{width:20px;height:20px;accent-color:var(--accent)}
+ 
+#recDock{display:flex;align-items:center;gap:6px;margin-left:auto;background:var(--chrome);border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 4px}
+#btnRec{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:999px;border:0;background:var(--rec);color:#fff;font-weight:700;cursor:pointer}
+#btnRec i{width:12px;height:12px;border-radius:50%;background:#fff}
+#btnRec.live{background:#3a1c1c;box-shadow:inset 0 0 0 2px var(--rec)}
+#btnRec.live i{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){#btnRec.live i{animation:none}}
+#recTime{font:600 15px var(--mono);min-width:58px;text-align:center;font-variant-numeric:tabular-nums}
+#meter{width:6px;height:28px;border-radius:3px;background:var(--panel-2);position:relative;overflow:hidden}
+#meter b{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--ok)}
+#btnMic[aria-pressed="false"]{color:var(--muted)}
+ 
+/* sheets */
+.backdrop{position:fixed;inset:0;z-index:50;background:#05070bb3;display:grid;place-items:center;padding:16px}
+.sheet{width:min(560px,100%);max-height:min(86vh,900px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 80px #000a}
+.sheet.wide{width:min(760px,100%)}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 8px 20px;border-bottom:1px solid var(--line)}
+.sheet-head h2{margin:0;font-size:17px;font-weight:700;text-wrap:balance}
+.sheet-body{padding:16px 20px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;-webkit-overflow-scrolling:touch}
+.sheet h3{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:650}
+.sheet p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-top:1px solid var(--line);min-width:0}
+.item:first-child{border-top:0}
+.item .grow{flex:1;min-width:0}
+.item .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
+.badge.rec{color:#fff;background:#5a1d1d;border-color:var(--rec)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12.5px;color:var(--muted)}
+select,.input{height:40px;border-radius:var(--radius);border:1px solid var(--line);background:var(--chrome);padding:0 10px;min-width:0}
+video{width:100%;border-radius:10px;background:#000;max-height:46vh}
+.progress{height:8px;border-radius:4px;background:var(--panel-2);overflow:hidden}
+.progress b{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.bgopts{display:flex;gap:10px;flex-wrap:wrap}
+.bgopt{width:72px;height:44px;border-radius:8px;border:2px solid var(--line);cursor:pointer;padding:0}
+.bgopt[aria-pressed="true"]{outline:3px solid var(--accent);outline-offset:2px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{height:36px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--chrome);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+ 
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;background:#0b0e14f2;
+  border:1px solid var(--line);color:var(--text);padding:10px 16px;border-radius:12px;max-width:min(520px,92vw);box-shadow:0 10px 30px #0008}
+ 
+@media (max-width:1300px){
+  .wide-only{display:none}
+  .sizewrap label{display:none}
+  #size{width:100px}
+  .sw{width:28px;height:28px}
+  #props{gap:8px 10px}
+}
+@media (max-width:820px){
+  #boardName{flex-basis:140px}
+  #saveState,.wide-only{display:none}
+  #size{width:96px}
+}
+@media (max-width:560px){
+  #main{flex-direction:column-reverse}
+  #tools{flex-direction:row;border-right:0;border-top:1px solid var(--line);overflow-x:auto;padding:6px}
+  #tools hr{width:auto;height:30px;border-top:0;border-left:1px solid var(--line);margin:0 4px}
+  #recDock{margin-left:0}
+}
+.btn.armed .wide-only{display:inline!important}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <button class="ib" id="btnBoards" aria-label="Boards" title="Boards" data-icon="boards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg></button>
+    <input id="boardName" aria-label="Board name" maxlength="80" spellcheck="false" autocomplete="off">
+    <span id="saveState">Saved</span>
+    <div class="spacer"></div>
+    <div class="grp">
+      <button class="ib" id="btnUndo" aria-label="Undo" title="Undo (⌘Z)" data-icon="undo" disabled=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg></button>
+      <button class="ib" id="btnRedo" aria-label="Redo" title="Redo (⇧⌘Z)" data-icon="redo" disabled=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"></path><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"></path></svg></button>
+    </div>
+    <div class="grp">
+      <button class="ib" id="btnPrev" aria-label="Previous page" title="Previous page" data-icon="left" disabled=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
+      <span id="pageLabel" aria-live="polite">1 / 1</span>
+      <button class="ib" id="btnNext" aria-label="Next page" title="Next page" data-icon="right" disabled=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+      <button class="ib" id="btnPages" aria-label="Pages" title="Add, duplicate or delete pages" data-icon="pages"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="13" height="16" rx="2"></rect><path d="M4 7v12a2 2 0 0 0 2 2h9"></path><path d="M12.5 8v6M9.5 11h6"></path></svg></button>
+    </div>
+    <button class="ib" id="btnTakes" aria-label="Recordings" title="Recordings" data-icon="film"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"></path></svg></button>
+    <button class="ib" id="btnExport" aria-label="Save and export" title="Save and export the board" data-icon="share"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m8 7 4-4 4 4"></path><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"></path></svg></button>
+    <button class="ib" id="btnSettings" aria-label="Settings" title="Settings" data-icon="sliders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"></path><circle cx="15" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg></button>
+  </header>
+ 
+  <div id="main">
+    <nav id="tools" aria-label="Tools">
+      <button class="ib" data-tool="move" aria-label="Move" title="Move (V)" data-icon="move" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18"></path><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"></path></svg></button>
+      <button class="ib" data-tool="pen" aria-label="Pen" title="Pen (P)" data-icon="pen" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"></path><path d="m14.5 6.5 3 3"></path></svg></button>
+      <button class="ib" data-tool="hl" aria-label="Highlighter" title="Highlighter (H)" data-icon="hl" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5-7.5 7.5H8v-4.5z"></path><path d="M8 12l-4 4v4h4l2-2"></path><path d="M14 20h6"></path></svg></button>
+      <button class="ib" data-tool="eraser" aria-label="Eraser" title="Eraser (E)" data-icon="eraser" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 14.5 13 6a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 19H8.5z"></path><path d="M14 19h6M9 10l5 5"></path></svg></button>
+      <hr>
+      <button class="ib" data-tool="line" aria-label="Line" title="Line (L)" data-icon="line" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5"></path></svg></button>
+      <button class="ib" data-tool="arrow" aria-label="Arrow" title="Arrow (A)" data-icon="arrow" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5"></path><path d="M10 5h9v9"></path></svg></button>
+      <button class="ib" data-tool="rect" aria-label="Rectangle" title="Rectangle (R)" data-icon="rect" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1.5"></rect></svg></button>
+      <button class="ib" data-tool="ellipse" aria-label="Ellipse" title="Ellipse (O)" data-icon="ellipse" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="7"></ellipse></svg></button>
+      <button class="ib" data-tool="text" aria-label="Text" title="Text (T)" data-icon="text" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5h14v2M12 5v14M9 19h6"></path></svg></button>
+      <button class="ib" data-tool="code" aria-label="Code block" title="Code block (C)" data-icon="code" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"></path></svg></button>
+      <hr>
+      <button class="ib" id="btnImage" aria-label="Insert image" title="Insert image" data-icon="image"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="m21 16-5-5-8 8"></path></svg></button>
+      <button class="ib" data-tool="laser" aria-label="Laser pointer" title="Laser pointer (K)" data-icon="laser" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></svg></button>
+    </nav>
+    <div id="stage">
+      <canvas id="view" aria-label="Whiteboard" width="2119" height="1192" style="cursor: crosshair; width: 1060px; height: 596px;"></canvas>
+      <textarea id="textEditor" hidden="" rows="1" aria-label="Type text"></textarea>
+      <button class="btn primary" id="textDone" hidden="">Done</button>
+      <div id="codeSelBox" hidden=""></div>
+      <div id="codeBar" hidden="" role="toolbar" aria-label="Code block controls">
+        <button class="btn primary" id="cbNext" title="Type the next part (Space)"><svg data-i="play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"></path></svg>Type next</button>
+        <button class="btn" id="cbAll">Show all</button>
+        <button class="btn" id="cbHide">Hide</button>
+        <button class="btn" id="cbSpot" title="Remove the line highlight">Clear spotlight</button>
+        <button class="ib" id="cbUp" aria-label="Scroll up" title="Scroll up" data-icon="up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg></button>
+        <button class="ib" id="cbDown" aria-label="Scroll down" title="Scroll down" data-icon="down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <span id="cbState" class="muted small"></span>
+        <button class="btn" id="cbEdit">Edit</button>
+        <button class="btn danger" id="cbDel"><svg data-i="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6"></path><path d="m6 7 1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg>Delete</button>
+        <button class="ib" id="cbDone" aria-label="Close code controls" title="Done" data-icon="x"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+      </div>
+      <div id="countdown" hidden=""></div>
+      <div id="banner" hidden=""></div>
+      <div id="hint" hidden=""></div>
+    </div>
+  </div>
+ 
+  <footer id="props">
+    <div class="swatches" id="swatches" role="group" aria-label="Ink colour"><button class="sw" data-c="#111827" style="background:#111827" aria-label="Colour #111827" aria-pressed="true"></button><button class="sw" data-c="#ffffff" style="background:#ffffff" aria-label="Colour #ffffff" aria-pressed="false"></button><button class="sw" data-c="#e11d48" style="background:#e11d48" aria-label="Colour #e11d48" aria-pressed="false"></button><button class="sw" data-c="#f97316" style="background:#f97316" aria-label="Colour #f97316" aria-pressed="false"></button><button class="sw" data-c="#eab308" style="background:#eab308" aria-label="Colour #eab308" aria-pressed="false"></button><button class="sw" data-c="#16a34a" style="background:#16a34a" aria-label="Colour #16a34a" aria-pressed="false"></button><button class="sw" data-c="#2563eb" style="background:#2563eb" aria-label="Colour #2563eb" aria-pressed="false"></button><button class="sw" data-c="#7c3aed" style="background:#7c3aed" aria-label="Colour #7c3aed" aria-pressed="false"></button></div>
+    <input type="color" id="customColor" aria-label="Custom colour" title="Custom colour">
+    <div class="sizewrap" id="sizeWrap" style="visibility: visible;">
+      <label for="size">Size</label>
+      <input type="range" id="size" min="1" max="40" step="1">
+      <span id="sizeDot" aria-hidden="true"><i style="height: 6px; width: 6px; background: rgb(17, 24, 39); border: 0px; opacity: 1;"></i></span>
+    </div>
+    <button class="btn" id="btnBg" title="Page background"><svg data-i="bg" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"></rect><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"></path></svg><span class="wide-only">Background</span></button>
+    <button class="btn" id="btnClear" title="Clear this page"><svg data-i="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6"></path><path d="m6 7 1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg><span class="wide-only">Clear page</span></button>
+    <label class="switch" title="Ignore finger touches so you can rest your palm"><input type="checkbox" id="pencilOnly"> Pencil only</label>
+    <div id="recDock">
+      <button class="ib" id="btnMic" aria-label="Microphone" title="Microphone on/off" aria-pressed="true" data-icon="mic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"></path></svg></button>
+      <span id="meter" aria-hidden="true"><b style="height: 0px;"></b></span>
+      <button id="btnRec"><i></i><span>Record</span></button>
+      <button class="ib" id="btnPause" aria-label="Pause" title="Pause" data-icon="pause" hidden=""><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></button>
+      <button class="ib" id="btnStop" aria-label="Stop" title="Stop and save" data-icon="stop" hidden=""><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></button>
+      <span id="recTime">00:00</span>
+    </div>
+  </footer>
+</div>
+<input type="file" id="fileImage" accept="image/*" hidden="">
+<input type="file" id="fileBoard" accept=".json,application/json" hidden="">
+<div id="toast" hidden="" role="status"></div>
+<script type="text/plain" id="gifenc-src">
+/* gifenc 1.0.3 — MIT License, (c) Matt DesLauriers */
+var X={signature:"GIF",version:"89a",trailer:59,extensionIntroducer:33,applicationExtensionLabel:255,graphicControlExtensionLabel:249,imageSeparator:44,signatureSize:3,versionSize:3,globalColorTableFlagMask:128,colorResolutionMask:112,sortFlagMask:8,globalColorTableSizeMask:7,applicationIdentifierSize:8,applicationAuthCodeSize:3,disposalMethodMask:28,userInputFlagMask:2,transparentColorFlagMask:1,localColorTableFlagMask:128,interlaceFlagMask:64,idSortFlagMask:32,localColorTableSizeMask:7};function F(t=256){let e=0,s=new Uint8Array(t);return{get buffer(){return s.buffer},reset(){e=0},bytesView(){return s.subarray(0,e)},bytes(){return s.slice(0,e)},writeByte(r){n(e+1),s[e]=r,e++},writeBytes(r,o=0,i=r.length){n(e+i);for(let c=0;c<i;c++)s[e++]=r[c+o]},writeBytesView(r,o=0,i=r.byteLength){n(e+i),s.set(r.subarray(o,o+i),e),e+=i}};function n(r){var o=s.length;if(o>=r)return;var i=1024*1024;r=Math.max(r,o*(o<i?2:1.125)>>>0),o!=0&&(r=Math.max(r,256));let c=s;s=new Uint8Array(r),e>0&&s.set(c.subarray(0,e),0)}}var O=12,J=5003,lt=[0,1,3,7,15,31,63,127,255,511,1023,2047,4095,8191,16383,32767,65535];function at(t,e,s,n,r=F(512),o=new Uint8Array(256),i=new Int32Array(J),c=new Int32Array(J)){let x=i.length,a=Math.max(2,n);o.fill(0),c.fill(0),i.fill(-1);let l=0,f=0,g=a+1,h=g,b=!1,w=h,_=(1<<w)-1,u=1<<g-1,k=u+1,B=u+2,p=0,A=s[0],z=0;for(let y=x;y<65536;y*=2)++z;z=8-z,r.writeByte(a),I(u);let d=s.length;for(let y=1;y<d;y++){t:{let m=s[y],v=(m<<O)+A,M=m<<z^A;if(i[M]===v){A=c[M];break t}let V=M===0?1:x-M;for(;i[M]>=0;)if(M-=V,M<0&&(M+=x),i[M]===v){A=c[M];break t}I(A),A=m,B<1<<O?(c[M]=B++,i[M]=v):(i.fill(-1),B=u+2,b=!0,I(u))}}return I(A),I(k),r.writeByte(0),r.bytesView();function I(y){for(l&=lt[f],f>0?l|=y<<f:l=y,f+=w;f>=8;)o[p++]=l&255,p>=254&&(r.writeByte(p),r.writeBytesView(o,0,p),p=0),l>>=8,f-=8;if((B>_||b)&&(b?(w=h,_=(1<<w)-1,b=!1):(++w,_=w===O?1<<w:(1<<w)-1)),y==k){for(;f>0;)o[p++]=l&255,p>=254&&(r.writeByte(p),r.writeBytesView(o,0,p),p=0),l>>=8,f-=8;p>0&&(r.writeByte(p),r.writeBytesView(o,0,p),p=0)}}}var $=at;function D(t,e,s){return t<<8&63488|e<<2&992|s>>3}function G(t,e,s,n){return t>>4|e&240|(s&240)<<4|(n&240)<<8}function j(t,e,s){return t>>4<<8|e&240|s>>4}function R(t,e,s){return t<e?e:t>s?s:t}function T(t){return t*t}function tt(t,e,s){var n=0,r=1e100;let o=t[e],i=o.cnt,c=o.ac,x=o.rc,a=o.gc,l=o.bc;for(var f=o.fw;f!=0;f=t[f].fw){let h=t[f],b=h.cnt,w=i*b/(i+b);if(!(w>=r)){var g=0;s&&(g+=w*T(h.ac-c),g>=r)||(g+=w*T(h.rc-x),!(g>=r)&&(g+=w*T(h.gc-a),!(g>=r)&&(g+=w*T(h.bc-l),!(g>=r)&&(r=g,n=f))))}}o.err=r,o.nn=n}function Q(){return{ac:0,rc:0,gc:0,bc:0,cnt:0,nn:0,fw:0,bk:0,tm:0,mtm:0,err:0}}function ut(t,e){let s=e==="rgb444"?4096:65536,n=new Array(s),r=t.length;if(e==="rgba4444")for(let o=0;o<r;++o){let i=t[o],c=i>>24&255,x=i>>16&255,a=i>>8&255,l=i&255,f=G(l,a,x,c),g=f in n?n[f]:n[f]=Q();g.rc+=l,g.gc+=a,g.bc+=x,g.ac+=c,g.cnt++}else if(e==="rgb444")for(let o=0;o<r;++o){let i=t[o],c=i>>16&255,x=i>>8&255,a=i&255,l=j(a,x,c),f=l in n?n[l]:n[l]=Q();f.rc+=a,f.gc+=x,f.bc+=c,f.cnt++}else for(let o=0;o<r;++o){let i=t[o],c=i>>16&255,x=i>>8&255,a=i&255,l=D(a,x,c),f=l in n?n[l]:n[l]=Q();f.rc+=a,f.gc+=x,f.bc+=c,f.cnt++}return n}function H(t,e,s={}){let{format:n="rgb565",clearAlpha:r=!0,clearAlphaColor:o=0,clearAlphaThreshold:i=0,oneBitAlpha:c=!1}=s;if(!t||!t.buffer)throw new Error("quantize() expected RGBA Uint8Array data");if(!(t instanceof Uint8Array)&&!(t instanceof Uint8ClampedArray))throw new Error("quantize() expected RGBA Uint8Array data");let x=new Uint32Array(t.buffer),a=s.useSqrt!==!1,l=n==="rgba4444",f=ut(x,n),g=f.length,h=g-1,b=new Uint32Array(g+1);for(var w=0,u=0;u<g;++u){let C=f[u];if(C!=null){var _=1/C.cnt;l&&(C.ac*=_),C.rc*=_,C.gc*=_,C.bc*=_,f[w++]=C}}T(e)/w<.022&&(a=!1);for(var u=0;u<w-1;++u)f[u].fw=u+1,f[u+1].bk=u,a&&(f[u].cnt=Math.sqrt(f[u].cnt));a&&(f[u].cnt=Math.sqrt(f[u].cnt));var k,B,p;for(u=0;u<w;++u){tt(f,u,!1);var A=f[u].err;for(B=++b[0];B>1&&(p=B>>1,!(f[k=b[p]].err<=A));B=p)b[B]=k;b[B]=u}var z=w-e;for(u=0;u<z;){for(var d;;){var I=b[1];if(d=f[I],d.tm>=d.mtm&&f[d.nn].mtm<=d.tm)break;d.mtm==h?I=b[1]=b[b[0]--]:(tt(f,I,!1),d.tm=u);var A=f[I].err;for(B=1;(p=B+B)<=b[0]&&(p<b[0]&&f[b[p]].err>f[b[p+1]].err&&p++,!(A<=f[k=b[p]].err));B=p)b[B]=k;b[B]=I}var y=f[d.nn],m=d.cnt,v=y.cnt,_=1/(m+v);l&&(d.ac=_*(m*d.ac+v*y.ac)),d.rc=_*(m*d.rc+v*y.rc),d.gc=_*(m*d.gc+v*y.gc),d.bc=_*(m*d.bc+v*y.bc),d.cnt+=y.cnt,d.mtm=++u,f[y.bk].fw=y.fw,f[y.fw].bk=y.bk,y.mtm=h}let M=[];var V=0;for(u=0;;++V){let L=R(Math.round(f[u].rc),0,255),C=R(Math.round(f[u].gc),0,255),Y=R(Math.round(f[u].bc),0,255),E=255;if(l){if(E=R(Math.round(f[u].ac),0,255),c){let st=typeof c=="number"?c:127;E=E<=st?0:255}r&&E<=i&&(L=C=Y=o,E=0)}let K=l?[L,C,Y,E]:[L,C,Y];if(xt(M,K)||M.push(K),(u=f[u].fw)==0)break}return M}function xt(t,e){for(let s=0;s<t.length;s++){let n=t[s],r=n[0]===e[0]&&n[1]===e[1]&&n[2]===e[2],o=n.length>=4&&e.length>=4?n[3]===e[3]:!0;if(r&&o)return!0}return!1}function U(t,e){var s=0,n;for(n=0;n<t.length;n++){let r=t[n]-e[n];s+=r*r}return s}function P(t,e){return e>1?Math.round(t/e)*e:t}function et(t,{roundRGB:e=5,roundAlpha:s=10,oneBitAlpha:n=null}={}){let r=new Uint32Array(t.buffer);for(let o=0;o<r.length;o++){let i=r[o],c=i>>24&255,x=i>>16&255,a=i>>8&255,l=i&255;if(c=P(c,s),n){let f=typeof n=="number"?n:127;c=c<=f?0:255}l=P(l,e),a=P(a,e),x=P(x,e),r[o]=c<<24|x<<16|a<<8|l<<0}}function nt(t,e,s="rgb565"){if(!t||!t.buffer)throw new Error("quantize() expected RGBA Uint8Array data");if(!(t instanceof Uint8Array)&&!(t instanceof Uint8ClampedArray))throw new Error("quantize() expected RGBA Uint8Array data");if(e.length>256)throw new Error("applyPalette() only works with 256 colors or less");let n=new Uint32Array(t.buffer),r=n.length,o=s==="rgb444"?4096:65536,i=new Uint8Array(r),c=new Array(o),x=s==="rgba4444";if(s==="rgba4444")for(let a=0;a<r;a++){let l=n[a],f=l>>24&255,g=l>>16&255,h=l>>8&255,b=l&255,w=G(b,h,g,f),_=w in c?c[w]:c[w]=gt(b,h,g,f,e);i[a]=_}else{let a=s==="rgb444"?j:D;for(let l=0;l<r;l++){let f=n[l],g=f>>16&255,h=f>>8&255,b=f&255,w=a(b,h,g),_=w in c?c[w]:c[w]=bt(b,h,g,e);i[l]=_}}return i}function gt(t,e,s,n,r){let o=0,i=1e100;for(let c=0;c<r.length;c++){let x=r[c],a=x[3],l=q(a-n);if(l>i)continue;let f=x[0];if(l+=q(f-t),l>i)continue;let g=x[1];if(l+=q(g-e),l>i)continue;let h=x[2];l+=q(h-s),!(l>i)&&(i=l,o=c)}return o}function bt(t,e,s,n){let r=0,o=1e100;for(let i=0;i<n.length;i++){let c=n[i],x=c[0],a=q(x-t);if(a>o)continue;let l=c[1];if(a+=q(l-e),a>o)continue;let f=c[2];a+=q(f-s),!(a>o)&&(o=a,r=i)}return r}function rt(t,e,s=5){if(!t.length||!e.length)return;let n=t.map(i=>i.slice(0,3)),r=s*s,o=t[0].length;for(let i=0;i<e.length;i++){let c=e[i];c.length<o?c=[c[0],c[1],c[2],255]:c.length>o?c=c.slice(0,3):c=c.slice();let x=N(n,c.slice(0,3),U),a=x[0],l=x[1];l>0&&l<=r&&(t[a]=c)}}function q(t){return t*t}function W(t,e,s=U){let n=Infinity,r=-1;for(let o=0;o<t.length;o++){let i=t[o],c=s(e,i);c<n&&(n=c,r=o)}return r}function N(t,e,s=U){let n=Infinity,r=-1;for(let o=0;o<t.length;o++){let i=t[o],c=s(e,i);c<n&&(n=c,r=o)}return[r,n]}function ot(t,e,s=U){return t[W(t,e,s)]}function ct(t={}){let{initialCapacity:e=4096,auto:s=!0}=t,n=F(e),r=5003,o=new Uint8Array(256),i=new Int32Array(r),c=new Int32Array(r),x=!1;return{reset(){n.reset(),x=!1},finish(){n.writeByte(X.trailer)},bytes(){return n.bytes()},bytesView(){return n.bytesView()},get buffer(){return n.buffer},get stream(){return n},writeHeader:a,writeFrame(l,f,g,h={}){let{transparent:b=!1,transparentIndex:w=0,delay:_=0,palette:u=null,repeat:k=0,colorDepth:B=8,dispose:p=-1}=h,A=!1;if(s?x||(A=!0,a(),x=!0):A=Boolean(h.first),f=Math.max(0,Math.floor(f)),g=Math.max(0,Math.floor(g)),A){if(!u)throw new Error("First frame must include a { palette } option");pt(n,f,g,u,B),it(n,u),k>=0&&dt(n,k)}let z=Math.round(_/10);wt(n,p,z,b,w);let d=Boolean(u)&&!A;ht(n,f,g,d?u:null),d&&it(n,u),yt(n,l,f,g,B,o,i,c)}};function a(){ft(n,"GIF89a")}}function wt(t,e,s,n,r){t.writeByte(33),t.writeByte(249),t.writeByte(4),r<0&&(r=0,n=!1);var o,i;n?(o=1,i=2):(o=0,i=0),e>=0&&(i=e&7),i<<=2;let c=0;t.writeByte(0|i|c|o),S(t,s),t.writeByte(r||0),t.writeByte(0)}function pt(t,e,s,n,r=8){let o=1,i=0,c=Z(n.length)-1,x=o<<7|r-1<<4|i<<3|c,a=0,l=0;S(t,e),S(t,s),t.writeBytes([x,a,l])}function dt(t,e){t.writeByte(33),t.writeByte(255),t.writeByte(11),ft(t,"NETSCAPE2.0"),t.writeByte(3),t.writeByte(1),S(t,e),t.writeByte(0)}function it(t,e){let s=1<<Z(e.length);for(let n=0;n<s;n++){let r=[0,0,0];n<e.length&&(r=e[n]),t.writeByte(r[0]),t.writeByte(r[1]),t.writeByte(r[2])}}function ht(t,e,s,n){if(t.writeByte(44),S(t,0),S(t,0),S(t,e),S(t,s),n){let r=0,o=0,i=Z(n.length)-1;t.writeByte(128|r|o|0|i)}else t.writeByte(0)}function yt(t,e,s,n,r=8,o,i,c){$(s,n,e,r,t,o,i,c)}function S(t,e){t.writeByte(e&255),t.writeByte(e>>8&255)}function ft(t,e){for(var s=0;s<e.length;s++)t.writeByte(e.charCodeAt(s))}function Z(t){return Math.max(Math.ceil(Math.log2(t)),1)}var Bt=ct;export{ct as GIFEncoder,nt as applyPalette,Bt as default,ot as nearestColor,W as nearestColorIndex,N as nearestColorIndexWithDistance,et as prequantize,H as quantize,rt as snapColorsToPalette};
+ 
+ 
+</script>
+<script>
+'use strict';
+/* =====================================================================
+   Lesson Board — whiteboard + voice-over recorder for iPad Safari.
+   Board space is fixed at 1920×1080; every view and export scales it.
+   All changes go through dispatch(action) so a recording can be
+   replayed later and re-exported at any format or size.
+   ===================================================================== */
+const BW = 1920, BH = 1080;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
+const clone = (o) => (o == null ? o : (typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o))));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const TEXT_FONT = 'ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, sans-serif';
+const LASER_LIFE = 900;
+ 
+/* ---------- icons ---------- */
+const ICONS = {
+  boards: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  pages: '<rect x="6" y="3" width="13" height="16" rx="2"/><path d="M4 7v12a2 2 0 0 0 2 2h9"/><path d="M12.5 8v6M9.5 11h6"/>',
+  film: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/>',
+  share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/>',
+  sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  move: '<path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
+  pen: '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="m14.5 6.5 3 3"/>',
+  hl: '<path d="m15 4 5 5-7.5 7.5H8v-4.5z"/><path d="M8 12l-4 4v4h4l2-2"/><path d="M14 20h6"/>',
+  eraser: '<path d="M4.5 14.5 13 6a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 19H8.5z"/><path d="M14 19h6M9 10l5 5"/>',
+  line: '<path d="M5 19 19 5"/>',
+  arrow: '<path d="M5 19 19 5"/><path d="M10 5h9v9"/>',
+  rect: '<rect x="4" y="6" width="16" height="12" rx="1.5"/>',
+  ellipse: '<ellipse cx="12" cy="12" rx="9" ry="7"/>',
+  text: '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
+  image: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/>',
+  laser: '<circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  bg: '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="m6 7 1 13h10l1-13"/><path d="M9 7V4h6v3"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+  micoff: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/><path d="M3 3l18 18"/>',
+  pause: '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  download: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+  code: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>',
+  up: '<path d="m6 15 6-6 6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+};
+const icon = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+function paintIcons(root = document) {
+  $$('[data-icon]', root).forEach(b => { b.innerHTML = icon(b.dataset.icon); });
+  $$('svg[data-i]', root).forEach(s => { s.setAttribute('viewBox', '0 0 24 24'); s.innerHTML = ICONS[s.dataset.i] || ''; });
+}
+ 
+/* ---------- small DOM helper ---------- */
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, '');
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) {
+    if (c == null || c === false) continue;
+    e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return e;
+}
+const btn = (label, onclick, opts = {}) => h('button', { class: 'btn ' + (opts.cls || ''), onclick, disabled: !!opts.disabled, html: (opts.icon ? icon(opts.icon) : '') }, label);
+const fmtTime = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+const fmtSize = (b) => b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
+const fmtDate = (t) => new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const safeName = (s) => (s || 'lesson').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'lesson';
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+ 
+/* ---------- backgrounds ---------- */
+const BG_COLORS = [
+  { c: '#ffffff', n: 'White' }, { c: '#f6f1e6', n: 'Paper' }, { c: '#e9eef5', n: 'Mist' },
+  { c: '#22392f', n: 'Chalkboard' }, { c: '#1e2633', n: 'Slate' }, { c: '#0c0f14', n: 'Black' },
+];
+const PATTERNS = [{ id: 'none', n: 'Plain' }, { id: 'grid', n: 'Grid' }, { id: 'dots', n: 'Dots' }, { id: 'lines', n: 'Lines' }];
+function isDark(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return false;
+  const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.45;
+}
+function drawBackground(ctx, bg) {
+  ctx.fillStyle = bg.color; ctx.fillRect(0, 0, BW, BH);
+  if (!bg.pattern || bg.pattern === 'none') return;
+  const dark = isDark(bg.color), step = 60;
+  ctx.save();
+  ctx.strokeStyle = ctx.fillStyle = dark ? 'rgba(255,255,255,.10)' : 'rgba(30,41,59,.10)';
+  ctx.lineWidth = 1.5;
+  if (bg.pattern === 'grid') {
+    ctx.beginPath();
+    for (let x = step; x < BW; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, BH); }
+    for (let y = step; y < BH; y += step) { ctx.moveTo(0, y); ctx.lineTo(BW, y); }
+    ctx.stroke();
+  } else if (bg.pattern === 'dots') {
+    for (let x = step; x < BW; x += step) for (let y = step; y < BH; y += step) { ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill(); }
+  } else if (bg.pattern === 'lines') {
+    ctx.beginPath();
+    for (let y = step * 2; y < BH; y += step) { ctx.moveTo(0, y); ctx.lineTo(BW, y); }
+    ctx.stroke();
+    ctx.strokeStyle = dark ? 'rgba(255,120,120,.25)' : 'rgba(220,38,38,.25)';
+    ctx.beginPath(); ctx.moveTo(150, 0); ctx.lineTo(150, BH); ctx.stroke();
+  }
+  ctx.restore();
+}
+ 
+/* ---------- images ---------- */
+const imgCache = new Map();
+const imgListeners = new Set();
+function getImg(src) {
+  let im = imgCache.get(src);
+  if (!im) {
+    im = new Image();
+    im.onload = () => imgListeners.forEach(f => f());
+    im.src = src; imgCache.set(src, im);
+  }
+  return im;
+}
+function preloadImages(srcs) {
+  return Promise.all([...new Set(srcs)].map(src => new Promise(res => {
+    const im = getImg(src);
+    if (im.complete && im.naturalWidth) return res();
+    im.addEventListener('load', res, { once: true }); im.addEventListener('error', res, { once: true });
+  })));
+}
+function imageSrcs(board, log) {
+  const out = [];
+  const scan = (it) => { if (it && it.t === 'image') out.push(it.src); };
+  board.pages.forEach(p => p.items.forEach(scan));
+  (log || []).forEach(({ a }) => { if (a.item) scan(a.item); if (a.entries) a.entries.forEach(e => scan(e.item)); if (a.page) a.page.items.forEach(scan); });
+  return out;
+}
+ 
+/* ---------- item drawing ---------- */
+const pw = (p) => 0.35 + 0.9 * (p == null ? 0.5 : p);
+const measureCtx = document.createElement('canvas').getContext('2d');
+function measureText(text, size) {
+  measureCtx.font = `600 ${size}px ${TEXT_FONT}`;
+  const lines = String(text).split('\n');
+  const w = Math.max(...lines.map(l => measureCtx.measureText(l).width), size * 0.5);
+  return { w: Math.ceil(w), h: Math.ceil(lines.length * size * 1.25) };
+}
+function smoothPath(ctx, pts) {
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    ctx.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  }
+  const l = pts[pts.length - 1]; ctx.lineTo(l[0], l[1]);
+}
+function drawStroke(ctx, it) {
+  const pts = it.pts; if (!pts || !pts.length) return;
+  ctx.strokeStyle = ctx.fillStyle = it.color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (it.tool === 'hl') {
+    ctx.globalAlpha = 0.35; ctx.lineWidth = it.size;
+    if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], it.size / 2, 0, 7); ctx.fill(); return; }
+    smoothPath(ctx, pts); ctx.stroke(); return;
+  }
+  if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], it.size * pw(pts[0][2]) / 2, 0, 7); ctx.fill(); return; }
+  let prev = pts[0];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.quadraticCurveTo(a[0], a[1], mid[0], mid[1]);
+    ctx.lineWidth = it.size * pw((a[2] + b[2]) / 2); ctx.stroke(); prev = mid;
+  }
+  const l = pts[pts.length - 1];
+  ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(l[0], l[1]); ctx.lineWidth = it.size * pw(l[2]); ctx.stroke();
+}
+function drawItem(ctx, it, now) {
+  ctx.save();
+  switch (it.t) {
+    case 'code': drawCode(ctx, it, now); break;
+    case 'stroke': drawStroke(ctx, it); break;
+    case 'line': case 'arrow': {
+      ctx.strokeStyle = ctx.fillStyle = it.color; ctx.lineWidth = it.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1), L = Math.max(22, it.size * 3.4);
+      let ex = it.x2, ey = it.y2;
+      if (it.t === 'arrow') { ex -= Math.cos(ang) * L * 0.6; ey -= Math.sin(ang) * L * 0.6; }
+      ctx.beginPath(); ctx.moveTo(it.x1, it.y1); ctx.lineTo(ex, ey); ctx.stroke();
+      if (it.t === 'arrow') {
+        ctx.beginPath(); ctx.moveTo(it.x2, it.y2);
+        ctx.lineTo(it.x2 - L * Math.cos(ang - 0.42), it.y2 - L * Math.sin(ang - 0.42));
+        ctx.lineTo(it.x2 - L * Math.cos(ang + 0.42), it.y2 - L * Math.sin(ang + 0.42));
+        ctx.closePath(); ctx.fill();
+      }
+      break;
+    }
+    case 'rect': {
+      ctx.strokeStyle = it.color; ctx.lineWidth = it.size; ctx.lineJoin = 'round';
+      ctx.strokeRect(Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1));
+      break;
+    }
+    case 'ellipse': {
+      ctx.strokeStyle = it.color; ctx.lineWidth = it.size;
+      ctx.beginPath();
+      ctx.ellipse((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, Math.max(1, Math.abs(it.x2 - it.x1) / 2), Math.max(1, Math.abs(it.y2 - it.y1) / 2), 0, 0, Math.PI * 2);
+      ctx.stroke(); break;
+    }
+    case 'text': {
+      ctx.fillStyle = it.color; ctx.font = `600 ${it.size}px ${TEXT_FONT}`; ctx.textBaseline = 'top';
+      String(it.text).split('\n').forEach((ln, i) => ctx.fillText(ln, it.x, it.y + i * it.size * 1.25 + it.size * 0.08));
+      break;
+    }
+    case 'image': {
+      const im = getImg(it.src);
+      if (im.complete && im.naturalWidth) ctx.drawImage(im, it.x, it.y, it.w, it.h);
+      else { ctx.fillStyle = 'rgba(148,163,184,.25)'; ctx.fillRect(it.x, it.y, it.w, it.h); }
+      break;
+    }
+    case 'ring': {
+      ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(15,23,42,.7)'; ctx.fillStyle = 'rgba(255,255,255,.35)';
+      ctx.beginPath(); ctx.arc(it.x, it.y, it.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); break;
+    }
+    case 'sel': {
+      const b = it.b; ctx.setLineDash([12, 8]); ctx.lineWidth = 3; ctx.strokeStyle = '#f4c655';
+      ctx.strokeRect(b.x - 8, b.y - 8, b.w + 16, b.h + 16);
+      if (it.handle) { ctx.setLineDash([]); ctx.fillStyle = '#f4c655'; ctx.fillRect(b.x + b.w - 6, b.y + b.h - 6, 28, 28); }
+      break;
+    }
+  }
+  ctx.restore();
+}
+ 
+/* ---------- geometry ---------- */
+function bounds(it) {
+  if (it.t === 'stroke') {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of it.pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+    const s = it.size / 2; return { x: x0 - s, y: y0 - s, w: x1 - x0 + it.size, h: y1 - y0 + it.size };
+  }
+  if ('x1' in it) { const s = it.size / 2; return { x: Math.min(it.x1, it.x2) - s, y: Math.min(it.y1, it.y2) - s, w: Math.abs(it.x2 - it.x1) + it.size, h: Math.abs(it.y2 - it.y1) + it.size }; }
+  return { x: it.x, y: it.y, w: it.w || 0, h: it.h || 0 };
+}
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0; t = clamp(t, 0, 1);
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function inBox(b, x, y, pad = 0) { return x >= b.x - pad && x <= b.x + b.w + pad && y >= b.y - pad && y <= b.y + b.h + pad; }
+function nearOutline(it, x, y, r) {
+  const rr = r + it.size / 2;
+  if (it.t === 'stroke') {
+    const p = it.pts;
+    if (p.length === 1) return Math.hypot(x - p[0][0], y - p[0][1]) < rr;
+    for (let i = 1; i < p.length; i++) if (distSeg(x, y, p[i - 1][0], p[i - 1][1], p[i][0], p[i][1]) < rr) return true;
+    return false;
+  }
+  if (it.t === 'line' || it.t === 'arrow') return distSeg(x, y, it.x1, it.y1, it.x2, it.y2) < rr;
+  if (it.t === 'rect') {
+    const x0 = Math.min(it.x1, it.x2), x1 = Math.max(it.x1, it.x2), y0 = Math.min(it.y1, it.y2), y1 = Math.max(it.y1, it.y2);
+    return distSeg(x, y, x0, y0, x1, y0) < rr || distSeg(x, y, x1, y0, x1, y1) < rr || distSeg(x, y, x1, y1, x0, y1) < rr || distSeg(x, y, x0, y1, x0, y0) < rr;
+  }
+  if (it.t === 'ellipse') {
+    const cx = (it.x1 + it.x2) / 2, cy = (it.y1 + it.y2) / 2, rx = Math.max(1, Math.abs(it.x2 - it.x1) / 2), ry = Math.max(1, Math.abs(it.y2 - it.y1) / 2);
+    const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
+    return Math.abs(d - 1) * Math.min(rx, ry) < rr;
+  }
+  return inBox(bounds(it), x, y, r);
+}
+const eraserHits = (it, x, y, r) => it.t !== 'code' && nearOutline(it, x, y, r);
+function grabHits(it, x, y) {
+  if (it.t === 'text' || it.t === 'image' || it.t === 'code' || it.t === 'rect' || it.t === 'ellipse') return inBox(bounds(it), x, y, 14);
+  return nearOutline(it, x, y, 16);
+}
+function translate(it, dx, dy) {
+  if (it.t === 'stroke') it.pts = it.pts.map(p => [p[0] + dx, p[1] + dy, p[2]]);
+  else if ('x1' in it) { it.x1 += dx; it.x2 += dx; it.y1 += dy; it.y2 += dy; }
+  else { it.x += dx; it.y += dy; }
+}
+ 
+/* ---------- model ---------- */
+const newPage = (bg) => ({ id: uid(), bg: bg ? { ...bg } : { color: '#ffffff', pattern: 'none' }, items: [] });
+function newBoard(name) { const p = newPage(); return { id: uid(), name: name || 'Untitled lesson', created: Date.now(), updated: Date.now(), pages: [p], cur: p.id }; }
+ 
+/* ---------- scene: board state + renderer ---------- */
+class Scene {
+  constructor(board) {
+    this.board = board;
+    this.pageId = board.pages.some(p => p.id === board.cur) ? board.cur : board.pages[0].id;
+    this.live = null; this.laser = []; this.caches = new Map(); this.version = 0;
+    stripAnims(board);
+  }
+  get page() { return this.board.pages.find(p => p.id === this.pageId) || this.board.pages[0]; }
+  get pageIndex() { return Math.max(0, this.board.pages.findIndex(p => p.id === this.pageId)); }
+  findPage(id) { return this.board.pages.find(p => p.id === id); }
+  invalidate() { for (const c of this.caches.values()) c.dirty = true; }
+  apply(a, t) {
+    this.version++;
+    const pg = a.p ? this.findPage(a.p) : null;
+    const cur = !!pg && pg.id === this.pageId;
+    switch (a.k) {
+      case 'add': if (!pg) break; { const it = clone(a.item); pg.items.push(it); if (cur) this.drawIncremental(it); } break;
+      case 'remove': if (!pg) break; { const s = new Set(a.ids); pg.items = pg.items.filter(i => !s.has(i.id)); if (cur) this.invalidate(); } break;
+      case 'insert': if (!pg) break;
+        [...a.entries].sort((x, y) => x.idx - y.idx).forEach(e => pg.items.splice(Math.min(e.idx, pg.items.length), 0, clone(e.item)));
+        if (cur) this.invalidate(); break;
+      case 'move': if (!pg) break; { const s = new Set(a.ids); pg.items.forEach(it => { if (s.has(it.id)) translate(it, a.dx, a.dy); }); if (cur) this.invalidate(); } break;
+      case 'set': if (!pg) break; { const it = pg.items.find(i => i.id === a.id); if (it) Object.assign(it, clone(a.props)); if (cur) this.invalidate(); } break;
+      case 'clear': if (!pg) break; pg.items = []; if (cur) this.invalidate(); break;
+      case 'bg': if (!pg) break; pg.bg = clone(a.bg); if (cur) this.invalidate(); break;
+      case 'addPage': this.board.pages.splice(clamp(a.at, 0, this.board.pages.length), 0, clone(a.page)); break;
+      case 'delPage': {
+        const i = this.board.pages.findIndex(p => p.id === a.id);
+        if (i < 0 || this.board.pages.length < 2) break;
+        this.board.pages.splice(i, 1);
+        if (this.pageId === a.id) { this.pageId = this.board.pages[Math.min(i, this.board.pages.length - 1)].id; this.live = null; this.laser = []; this.invalidate(); }
+        break;
+      }
+      case 'page': if (this.findPage(a.id)) { this.pageId = a.id; this.live = null; this.laser = []; this.invalidate(); } break;
+      case 'liveStart': this.live = clone(a.item); break;
+      case 'livePt': if (this.live && this.live.pts) this.live.pts.push(a.pt); break;
+      case 'liveSet': this.live = clone(a.item); break;
+      case 'liveEnd': this.live = null; break;
+      case 'laser': this.laser.push({ x: a.x, y: a.y, t }); break;
+      case 'laserEnd': this.laser.push({ brk: true, t }); break;
+      case 'rename': this.board.name = a.name; break;
+      case 'reveal': if (!pg) break; {
+        const it = pg.items.find(i => i.id === a.id); if (!it) break;
+        const from = revealAt(it, t), to = a.to;
+        it.anim = (a.cps > 0 && to > from) ? { from, to, t0: t, cps: a.cps } : null;
+        it.reveal = to; if (cur) this.invalidate();
+      } break;
+    }
+  }
+  splitIndex() {
+    const items = this.page.items;
+    for (let i = 0; i < items.length; i++) { const a = items[i].anim; if (a && !a.done) return i; }
+    return Infinity;
+  }
+  drawIncremental(it) {
+    if (this.splitIndex() !== Infinity) { this.invalidate(); return; }
+    for (const c of this.caches.values()) {
+      if (c.dirty) continue;
+      const ctx = c.cv.getContext('2d'); ctx.setTransform(c.w / BW, 0, 0, c.h / BH, 0, 0); drawItem(ctx, it);
+    }
+  }
+  cacheFor(w, h) {
+    const key = w + 'x' + h;
+    let c = this.caches.get(key);
+    if (!c) { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; c = { cv, w, h, dirty: true }; this.caches.set(key, c); }
+    const split = this.splitIndex();
+    if (c.split !== split) c.dirty = true;
+    if (c.dirty) {
+      const ctx = c.cv.getContext('2d'); ctx.setTransform(w / BW, 0, 0, h / BH, 0, 0);
+      const pg = this.page; drawBackground(ctx, pg.bg);
+      pg.items.forEach((it, i) => { if (i < split) drawItem(ctx, it); });
+      c.dirty = false; c.split = split;
+    }
+    return c.cv;
+  }
+  dropCache(w, h) { this.caches.delete(w + 'x' + h); }
+  render(ctx, w, h, now) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(this.cacheFor(w, h), 0, 0);
+    ctx.setTransform(w / BW, 0, 0, h / BH, 0, 0);
+    const split = this.splitIndex();
+    if (split !== Infinity) {
+      const items = this.page.items;
+      for (let i = split; i < items.length; i++) drawItem(ctx, items[i], now);
+      let finished = false;
+      for (const it of items) if (it.anim && !it.anim.done && revealAt(it, now) >= it.anim.to) { it.anim.done = true; finished = true; }
+      if (finished) { this.invalidate(); this.version++; }
+    }
+    if (this.live) drawItem(ctx, this.live, now);
+    this.drawLaser(ctx, now);
+  }
+  animActive() { return this.splitIndex() !== Infinity; }
+  drawLaser(ctx, now) {
+    const L = this.laser;
+    while (L.length && now - L[0].t > LASER_LIFE) L.shift();
+    if (!L.length) return;
+    ctx.save(); ctx.lineCap = 'round'; ctx.shadowColor = 'rgba(255,40,40,.9)'; ctx.shadowBlur = 18;
+    for (let i = 1; i < L.length; i++) {
+      const a = L[i - 1], b = L[i]; if (a.brk || b.brk) continue;
+      const k = clamp(1 - (now - b.t) / LASER_LIFE, 0, 1);
+      ctx.strokeStyle = `rgba(255,48,48,${k})`; ctx.lineWidth = 6 + 8 * k;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    const last = L[L.length - 1];
+    if (!last.brk) { ctx.fillStyle = '#ff3b30'; ctx.beginPath(); ctx.arc(last.x, last.y, 11, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+  laserActive(now) { return this.laser.some(p => !p.brk && now - p.t < LASER_LIFE); }
+}
+ 
+/* ---------- storage (IndexedDB) ---------- */
+const DB = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      if (!window.indexedDB) return rej(new Error('no indexedDB'));
+      const r = indexedDB.open('lesson-board', 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        if (!d.objectStoreNames.contains('boards')) d.createObjectStore('boards', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('takes')) d.createObjectStore('takes', { keyPath: 'id' });
+      };
+      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async run(store, mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(store, mode); const req = fn(tx.objectStore(store));
+      tx.oncomplete = () => res(req ? req.result : undefined);
+      tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    });
+  },
+  put(s, v) { return this.run(s, 'readwrite', st => st.put(v)); },
+  get(s, k) { return this.run(s, 'readonly', st => st.get(k)); },
+  all(s) { return this.run(s, 'readonly', st => st.getAll()); },
+  del(s, k) { return this.run(s, 'readwrite', st => st.delete(k)); },
+};
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('lb.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('lb.' + k, JSON.stringify(v)); } catch {} },
+};
+ 
+/* ---------- app state ---------- */
+const PALETTE = ['#111827', '#ffffff', '#e11d48', '#f97316', '#eab308', '#16a34a', '#2563eb', '#7c3aed'];
+const DEFAULT_SIZES = { pen: 6, hl: 30, eraser: 26, line: 6, arrow: 6, rect: 6, ellipse: 6, text: 56 };
+const app = {
+  board: null, scene: null, tool: 'pen', color: '#111827',
+  sizes: { ...DEFAULT_SIZES, ...LS.get('sizes', {}) },
+  undo: [], redo: [], gesture: null, rec: null, sheet: null, sheetCleanup: null,
+  settings: { fmt: '', res: 1080, mic: true, countdown: true, pencilOnly: false, ...LS.get('settings', {}) },
+};
+const view = $('#view');
+const vctx = view.getContext('2d');
+const LIVE_KINDS = new Set(['liveStart', 'livePt', 'liveSet', 'liveEnd', 'laser', 'laserEnd']);
+ 
+function dispatch(a) {
+  app.scene.apply(a, performance.now());
+  const r = app.rec;
+  if (r && (r.state === 'recording' || r.state === 'paused')) r.log.push({ t: recClock(), a });
+  if (!LIVE_KINDS.has(a.k)) { scheduleSave(); if (a.k === 'page' || a.k === 'addPage' || a.k === 'delPage') updatePageUI(); }
+  requestRender();
+}
+function pushHistory(doActs, undoActs) { app.undo.push({ do: doActs, undo: undoActs }); if (app.undo.length > 300) app.undo.shift(); app.redo.length = 0; updateUndoUI(); }
+function commit(doActs, undoActs) { doActs.forEach(dispatch); pushHistory(doActs, undoActs); }
+function showPageOf(acts) {
+  const p = acts.find(a => a.p)?.p;
+  if (p && p !== app.scene.pageId && app.scene.findPage(p)) dispatch({ k: 'page', id: p });
+}
+function undo() { cancelGesture(); const e = app.undo.pop(); if (!e) return; showPageOf(e.undo); e.undo.forEach(dispatch); app.redo.push(e); updateUndoUI(); updatePageUI(); }
+function redo() { cancelGesture(); const e = app.redo.pop(); if (!e) return; showPageOf(e.do); e.do.forEach(dispatch); app.undo.push(e); updateUndoUI(); updatePageUI(); }
+ 
+/* ---------- saving ---------- */
+let saveTimer = 0, storageOK = true;
+function setSaveState(text, warn) { const s = $('#saveState'); s.textContent = text; s.classList.toggle('warn', !!warn); }
+function scheduleSave() { setSaveState('Editing…'); clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 1200); }
+async function saveNow() {
+  clearTimeout(saveTimer); saveTimer = 0;
+  if (!app.board) return;
+  app.board.cur = app.scene.pageId; app.board.updated = Date.now();
+  try { const snap = clone(app.board); stripAnims(snap); await DB.put('boards', snap); LS.set('last', app.board.id); storageOK = true; setSaveState('Saved'); }
+  catch (e) { storageOK = false; setSaveState('Not saved — use Save board file', true); }
+}
+function loadBoard(board) {
+  app.board = board; app.scene = new Scene(board);
+  app.undo = []; app.redo = []; app.gesture = null; app.codeSel = null;
+  $('#boardName').value = board.name;
+  LS.set('last', board.id);
+  layout(); updateUndoUI(); updatePageUI(); requestRender();
+}
+ 
+/* ---------- layout + render loop ---------- */
+let rafId = 0;
+function layout() {
+  const st = $('#stage').getBoundingClientRect(), pad = 14;
+  let w = Math.max(100, st.width - pad * 2), hgt = w * 9 / 16;
+  if (hgt > st.height - pad * 2) { hgt = Math.max(56, st.height - pad * 2); w = hgt * 16 / 9; }
+  view.style.width = Math.round(w) + 'px'; view.style.height = Math.round(hgt) + 'px';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const pw_ = Math.round(w * dpr), ph = Math.round(hgt * dpr);
+  if (view.width !== pw_ || view.height !== ph) {
+    if (app.scene) app.scene.dropCache(view.width, view.height);
+    view.width = pw_; view.height = ph;
+  }
+  requestRender();
+}
+function requestRender() { if (!rafId) rafId = requestAnimationFrame(frame); }
+function frame() {
+  rafId = 0;
+  const sc = app.scene; if (!sc) return;
+  const now = performance.now();
+  sc.render(vctx, view.width, view.height, now);
+  const r = app.rec;
+  if (r && r.state === 'recording') sc.render(r.ctx, r.w, r.h, now);
+  if (r) updateRecClock();
+  if (app.codeSel) updateCodeUI();
+  if (r || sc.laserActive(now) || sc.animActive()) requestRender();
+}
+ 
+/* ---------- pointer input ---------- */
+function toBoard(e) { const r = view.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * BW, (e.clientY - r.top) / r.height * BH]; }
+const pressureOf = (e) => e.pointerType === 'pen' ? (e.pressure || 0.5) : 0.5;
+const round1 = (v) => Math.round(v * 10) / 10;
+ 
+view.addEventListener('pointerdown', (e) => {
+  if (app.settings.pencilOnly && e.pointerType === 'touch') return;
+  if (app.gesture || app.rec?.state === 'stopping') return;
+  if (!$('#textEditor').hidden) { commitText(); return; }
+  e.preventDefault();
+  try { view.setPointerCapture(e.pointerId); } catch {}
+  const [x, y] = toBoard(e), p = pressureOf(e), pid = app.scene.pageId, tool = app.tool;
+  hideHint();
+  switch (tool) {
+    case 'pen': case 'hl': {
+      const item = { id: uid(), t: 'stroke', tool, color: app.color, size: app.sizes[tool], pts: [] };
+      app.gesture = { tool, id: e.pointerId, pid, item, p };
+      dispatch({ k: 'liveStart', item: { ...item, pts: [] } });
+      addPoint(x, y, p); break;
+    }
+    case 'line': case 'arrow': case 'rect': case 'ellipse': {
+      const item = { id: uid(), t: tool, color: app.color, size: app.sizes[tool], x1: round1(x), y1: round1(y), x2: round1(x), y2: round1(y) };
+      app.gesture = { tool, id: e.pointerId, pid, item };
+      dispatch({ k: 'liveSet', item }); break;
+    }
+    case 'eraser': {
+      app.gesture = { tool, id: e.pointerId, pid, order: app.scene.page.items.map(i => i.id), removed: new Map() };
+      eraseAt(x, y); break;
+    }
+    case 'move': startMove(e, x, y, pid); break;
+    case 'text': app.gesture = { tool, id: e.pointerId, x, y }; break;
+    case 'code': codeDown(e, x, y, pid); break;
+    case 'laser': app.gesture = { tool, id: e.pointerId, lx: x, ly: y }; dispatch({ k: 'laser', x: round1(x), y: round1(y) }); break;
+  }
+});
+view.addEventListener('pointermove', (e) => {
+  const g = app.gesture; if (!g || e.pointerId !== g.id) return;
+  e.preventDefault();
+  const evs = (e.getCoalescedEvents && e.getCoalescedEvents().length) ? e.getCoalescedEvents() : [e];
+  for (const ev of evs) {
+    const [x, y] = toBoard(ev);
+    switch (g.tool) {
+      case 'pen': case 'hl': { const p = g.p * 0.6 + pressureOf(ev) * 0.4; g.p = p; addPoint(x, y, p); break; }
+      case 'line': case 'arrow': case 'rect': case 'ellipse': g.item.x2 = round1(x); g.item.y2 = round1(y); break;
+      case 'eraser': eraseAt(x, y); break;
+      case 'move': moveTo(x, y); break;
+      case 'code': codeMove(x, y); break;
+      case 'laser': if (Math.hypot(x - g.lx, y - g.ly) > 2) { g.lx = x; g.ly = y; dispatch({ k: 'laser', x: round1(x), y: round1(y) }); } break;
+    }
+  }
+  if (['line', 'arrow', 'rect', 'ellipse'].includes(g.tool)) dispatch({ k: 'liveSet', item: g.item });
+});
+function endGesture(e) {
+  const g = app.gesture; if (!g || (e && e.pointerId !== g.id)) return;
+  app.gesture = null;
+  switch (g.tool) {
+    case 'pen': case 'hl':
+      dispatch({ k: 'liveEnd' });
+      if (g.item.pts.length) commit([{ k: 'add', p: g.pid, item: g.item }], [{ k: 'remove', p: g.pid, ids: [g.item.id] }]);
+      break;
+    case 'line': case 'arrow': case 'rect': case 'ellipse': {
+      dispatch({ k: 'liveEnd' });
+      const it = g.item;
+      if (Math.hypot(it.x2 - it.x1, it.y2 - it.y1) > 6) commit([{ k: 'add', p: g.pid, item: it }], [{ k: 'remove', p: g.pid, ids: [it.id] }]);
+      break;
+    }
+    case 'eraser': {
+      dispatch({ k: 'liveEnd' });
+      if (g.removed.size) {
+        const entries = [...g.removed.values()];
+        pushHistory([{ k: 'remove', p: g.pid, ids: entries.map(en => en.item.id) }], [{ k: 'insert', p: g.pid, entries }]);
+      }
+      break;
+    }
+    case 'move': endMove(g); break;
+    case 'laser': dispatch({ k: 'laserEnd' }); break;
+    case 'text': if (e && e.type === 'pointerup') openTextEditor(g.x, g.y); break;
+    case 'code': codeUp(g, e); break;
+  }
+}
+function cancelGesture() { if (app.gesture) endGesture(); }
+view.addEventListener('pointerup', endGesture);
+view.addEventListener('pointercancel', endGesture);
+ 
+function addPoint(x, y, p) {
+  const g = app.gesture, pts = g.item.pts, last = pts[pts.length - 1];
+  if (last && Math.hypot(x - last[0], y - last[1]) < 1.5) return;
+  const pt = [round1(x), round1(y), Math.round(p * 100) / 100];
+  pts.push(pt); dispatch({ k: 'livePt', pt });
+}
+function eraseAt(x, y) {
+  const g = app.gesture, r = app.sizes.eraser, items = app.scene.page.items, hit = [];
+  for (const it of items) if (!g.removed.has(it.id) && eraserHits(it, x, y, r)) hit.push(it);
+  if (hit.length) {
+    hit.forEach(it => g.removed.set(it.id, { idx: g.order.indexOf(it.id), item: clone(it) }));
+    dispatch({ k: 'remove', p: g.pid, ids: hit.map(i => i.id) });
+  }
+  dispatch({ k: 'liveSet', item: { t: 'ring', x: round1(x), y: round1(y), r } });
+}
+ 
+/* move + image resize */
+function startMove(e, x, y, pid) {
+  const items = app.scene.page.items;
+  let it = null;
+  for (let i = items.length - 1; i >= 0; i--) if (grabHits(items[i], x, y)) { it = items[i]; break; }
+  if (!it) { showHint('Nothing here to move. Tap a drawing, text or image.'); return; }
+  const b = bounds(it);
+  if (it.t === 'image' && Math.hypot(x - (it.x + it.w), y - (it.y + it.h)) < 48) {
+    app.gesture = { tool: 'move', mode: 'resize', id: e.pointerId, pid, iid: it.id, w0: it.w, h0: it.h, ratio: it.w / it.h, x0: it.x, y0: it.y, w: it.w, h: it.h };
+  } else {
+    app.gesture = { tool: 'move', mode: 'move', id: e.pointerId, pid, iid: it.id, lx: x, ly: y, tx: 0, ty: 0 };
+  }
+  dispatch({ k: 'liveSet', item: { t: 'sel', b, handle: it.t === 'image' } });
+}
+function moveTo(x, y) {
+  const g = app.gesture, it = app.scene.page.items.find(i => i.id === g.iid); if (!it) return;
+  if (g.mode === 'resize') {
+    const w = Math.max(60, round1(x - g.x0)), hh = round1(w / g.ratio);
+    g.w = w; g.h = hh; dispatch({ k: 'set', p: g.pid, id: g.iid, props: { w, h: hh } });
+  } else {
+    const dx = round1(x - g.lx), dy = round1(y - g.ly); if (!dx && !dy) return;
+    g.lx += dx; g.ly += dy; g.tx += dx; g.ty += dy;
+    dispatch({ k: 'move', p: g.pid, ids: [g.iid], dx, dy });
+  }
+  dispatch({ k: 'liveSet', item: { t: 'sel', b: bounds(it), handle: it.t === 'image' } });
+}
+function endMove(g) {
+  dispatch({ k: 'liveEnd' });
+  if (g.mode === 'resize' && (g.w !== g.w0 || g.h !== g.h0))
+    pushHistory([{ k: 'set', p: g.pid, id: g.iid, props: { w: g.w, h: g.h } }], [{ k: 'set', p: g.pid, id: g.iid, props: { w: g.w0, h: g.h0 } }]);
+  else if (g.mode === 'move' && (g.tx || g.ty))
+    pushHistory([{ k: 'move', p: g.pid, ids: [g.iid], dx: g.tx, dy: g.ty }], [{ k: 'move', p: g.pid, ids: [g.iid], dx: -g.tx, dy: -g.ty }]);
+}
+ 
+/* ---------- text ---------- */
+const textEd = $('#textEditor'), textDone = $('#textDone');
+function openTextEditor(x, y) {
+  const vr = view.getBoundingClientRect(), sr = $('#stage').getBoundingClientRect(), s = vr.width / BW;
+  textEd.dataset.x = x; textEd.dataset.y = y;
+  textEd.style.left = (vr.left - sr.left + x * s) + 'px';
+  textEd.style.top = (vr.top - sr.top + y * s) + 'px';
+  textEd.style.fontSize = (app.sizes.text * s) + 'px';
+  textEd.style.color = app.color;
+  textEd.style.background = isDark(app.scene.page.bg.color) ? 'rgba(0,0,0,.35)' : 'rgba(255,255,255,.6)';
+  textEd.value = ''; textEd.hidden = false; sizeTextEditor();
+  textDone.hidden = false;
+  textDone.style.left = (vr.left - sr.left + x * s) + 'px';
+  textDone.style.top = Math.max(4, vr.top - sr.top + y * s - 48) + 'px';
+  textEd.focus({ preventScroll: true });
+}
+function sizeTextEditor() {
+  const s = view.getBoundingClientRect().width / BW, m = measureText(textEd.value || 'M', app.sizes.text);
+  textEd.style.width = Math.max(160, (m.w + app.sizes.text) * s) + 'px';
+  textEd.style.height = Math.max(app.sizes.text * 1.3, m.h + 6) * s + 'px';
+}
+function commitText() {
+  if (textEd.hidden) return;
+  const text = textEd.value.replace(/\s+$/, '');
+  textEd.hidden = true; textDone.hidden = true; textEd.blur();
+  if (!text) return;
+  const size = app.sizes.text, m = measureText(text, size), pid = app.scene.pageId;
+  const item = { id: uid(), t: 'text', x: round1(+textEd.dataset.x), y: round1(+textEd.dataset.y), text, color: app.color, size, w: m.w, h: m.h };
+  commit([{ k: 'add', p: pid, item }], [{ k: 'remove', p: pid, ids: [item.id] }]);
+}
+textEd.addEventListener('input', sizeTextEditor);
+textEd.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { textEd.value = ''; commitText(); }
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commitText(); }
+});
+textDone.addEventListener('pointerdown', (e) => { e.preventDefault(); commitText(); });
+ 
+/* ---------- images ---------- */
+async function fileToImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const max = 1800, k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    const png = file.type === 'image/png' || file.type === 'image/gif';
+    return { src: c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.86), w: c.width, h: c.height };
+  } finally { URL.revokeObjectURL(url); }
+}
+async function insertImageFile(file) {
+  if (!file || !/^image\//.test(file.type)) return;
+  try {
+    const { src, w, h: hh } = await fileToImage(file);
+    const k = Math.min(BW * 0.6 / w, BH * 0.6 / hh, 1.5), iw = round1(w * k), ih = round1(hh * k);
+    const pid = app.scene.pageId;
+    const item = { id: uid(), t: 'image', src, x: round1((BW - iw) / 2), y: round1((BH - ih) / 2), w: iw, h: ih };
+    await preloadImages([src]);
+    commit([{ k: 'add', p: pid, item }], [{ k: 'remove', p: pid, ids: [item.id] }]);
+    setTool('move'); showHint('Image added. Drag it to move; drag its yellow corner to resize.');
+  } catch { toast('That image could not be opened. Try a JPEG or PNG.'); }
+}
+$('#btnImage').addEventListener('click', () => $('#fileImage').click());
+$('#fileImage').addEventListener('change', (e) => { insertImageFile(e.target.files[0]); e.target.value = ''; });
+document.addEventListener('paste', (e) => {
+  if (e.target === textEd || e.target.tagName === 'INPUT') return;
+  const f = [...(e.clipboardData?.files || [])].find(f => f.type.startsWith('image/'));
+  if (f) { e.preventDefault(); insertImageFile(f); }
+});
+imgListeners.add(() => { app.scene?.invalidate(); requestRender(); });
+ 
+/* ---------- tools + ink ---------- */
+function setTool(t) {
+  if (t !== 'text') commitText();
+  app.tool = t;
+  $$('#tools [data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  view.style.cursor = t === 'move' ? 'grab' : t === 'laser' ? 'pointer' : 'crosshair';
+  updateSizeUI();
+}
+function setColor(c) {
+  app.color = c;
+  $$('#swatches .sw').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === c)));
+  $('#customColor').value = c;
+  updateSizeUI();
+}
+function updateSizeUI() {
+  const has = app.tool in DEFAULT_SIZES;
+  $('#sizeWrap').style.visibility = has ? 'visible' : 'hidden';
+  if (!has) return;
+  const v = app.sizes[app.tool], s = $('#size');
+  s.max = app.tool === 'text' ? 160 : app.tool === 'eraser' || app.tool === 'hl' ? 80 : 40;
+  s.min = app.tool === 'text' ? 20 : 1;
+  s.value = v;
+  const d = $('#sizeDot i'), px = clamp(app.tool === 'text' ? v / 5 : v, 3, 30);
+  d.style.width = d.style.height = px + 'px';
+  d.style.background = app.tool === 'eraser' ? 'transparent' : app.color;
+  d.style.border = app.tool === 'eraser' ? '2px solid var(--muted)' : '0';
+  d.style.opacity = app.tool === 'hl' ? 0.45 : 1;
+}
+$('#size').addEventListener('input', (e) => { app.sizes[app.tool] = +e.target.value; LS.set('sizes', app.sizes); updateSizeUI(); });
+$$('#tools [data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+PALETTE.forEach(c => $('#swatches').append(h('button', { class: 'sw', 'data-c': c, style: `background:${c}`, 'aria-label': 'Colour ' + c, onclick: () => setColor(c) })));
+$('#customColor').addEventListener('input', (e) => setColor(e.target.value));
+ 
+/* ---------- pages ---------- */
+function updatePageUI() {
+  const sc = app.scene; if (!sc) return;
+  const n = sc.board.pages.length, i = sc.pageIndex;
+  $('#pageLabel').textContent = `${i + 1} / ${n}`;
+  $('#btnPrev').disabled = i === 0; $('#btnNext').disabled = i === n - 1;
+}
+function updateUndoUI() { $('#btnUndo').disabled = !app.undo.length; $('#btnRedo').disabled = !app.redo.length; }
+function goPage(delta) {
+  commitText(); cancelGesture();
+  const pages = app.scene.board.pages, i = clamp(app.scene.pageIndex + delta, 0, pages.length - 1);
+  if (pages[i].id !== app.scene.pageId) dispatch({ k: 'page', id: pages[i].id });
+}
+function addPage(duplicate) {
+  const sc = app.scene, cur = sc.page, at = sc.pageIndex + 1;
+  const page = duplicate ? { ...clone(cur), id: uid(), items: cur.items.map(it => ({ ...clone(it), id: uid() })) } : newPage(cur.bg);
+  commit([{ k: 'addPage', at, page }, { k: 'page', id: page.id }], [{ k: 'page', id: cur.id }, { k: 'delPage', id: page.id }]);
+}
+function deletePage() {
+  const sc = app.scene; if (sc.board.pages.length < 2) return;
+  const cur = sc.page, at = sc.pageIndex;
+  commit([{ k: 'delPage', id: cur.id }], [{ k: 'addPage', at, page: clone(cur) }, { k: 'page', id: cur.id }]);
+}
+$('#btnPrev').addEventListener('click', () => goPage(-1));
+$('#btnNext').addEventListener('click', () => goPage(1));
+$('#btnUndo').addEventListener('click', undo);
+$('#btnRedo').addEventListener('click', redo);
+$('#btnPages').addEventListener('click', () => {
+  const body = openSheet('Pages');
+  const sc = app.scene;
+  body.append(h('p', { class: 'muted' }, `Page ${sc.pageIndex + 1} of ${sc.board.pages.length}. Changing pages while recording shows the change in the video.`));
+  const del = btn('Delete this page', null, { icon: 'trash', cls: 'danger', disabled: sc.board.pages.length < 2 });
+  armTwoTap(del, 'Tap again to delete', () => { deletePage(); closeSheet(); });
+  body.append(h('div', { class: 'row' },
+    btn('New blank page', () => { addPage(false); closeSheet(); }, { icon: 'plus', cls: 'primary' }),
+    btn('Duplicate page', () => { addPage(true); closeSheet(); }, { icon: 'copy' }), del));
+});
+ 
+/* background + clear */
+$('#btnBg').addEventListener('click', () => {
+  const body = openSheet('Page background'), sc = app.scene;
+  const render = () => {
+    body.innerHTML = '';
+    const bg = sc.page.bg;
+    const colors = h('div', { class: 'bgopts' }, BG_COLORS.map(o => h('button', { class: 'bgopt', style: `background:${o.c}`, 'aria-label': o.n, title: o.n, 'aria-pressed': String(bg.color === o.c), onclick: () => setBg({ ...bg, color: o.c }) })));
+    const pats = h('div', { class: 'seg' }, PATTERNS.map(o => h('button', { 'aria-pressed': String((bg.pattern || 'none') === o.id), onclick: () => setBg({ ...bg, pattern: o.id }) }, o.n)));
+    body.append(h('div', {}, h('h3', {}, 'Colour'), colors), h('div', {}, h('h3', {}, 'Pattern'), pats),
+      h('div', { class: 'row' }, btn('Use on all pages', () => setBgAll(sc.page.bg), {})));
+    if (isDark(bg.color) && isDark(app.color)) body.append(h('p', { class: 'muted small' }, 'Tip: pick white or yellow ink so your writing shows on a dark board.'));
+  };
+  const setBg = (nb) => { const pid = sc.pageId, old = clone(sc.page.bg); commit([{ k: 'bg', p: pid, bg: nb }], [{ k: 'bg', p: pid, bg: old }]); render(); };
+  const setBgAll = (nb) => {
+    const doA = [], unA = [];
+    sc.board.pages.forEach(p => { doA.push({ k: 'bg', p: p.id, bg: clone(nb) }); unA.push({ k: 'bg', p: p.id, bg: clone(p.bg) }); });
+    commit(doA, unA); toast('Background applied to every page.');
+  };
+  render();
+});
+const clearBtn = $('#btnClear');
+armTwoTap(clearBtn, 'Tap again to clear', () => {
+  const sc = app.scene, pid = sc.pageId, items = sc.page.items;
+  if (!items.length) return;
+  commit([{ k: 'clear', p: pid }], [{ k: 'insert', p: pid, entries: items.map((it, idx) => ({ idx, item: clone(it) })) }]);
+});
+function armTwoTap(b, armedLabel, action) {
+  let timer = 0; const labelEl = b.querySelector('span') || b;
+  const orig = () => b.dataset.orig;
+  b.addEventListener('click', () => {
+    if (!b.classList.contains('armed')) {
+      b.dataset.orig = labelEl.lastChild ? labelEl.lastChild.textContent : '';
+      if (labelEl.lastChild) labelEl.lastChild.textContent = armedLabel;
+      b.classList.add('armed'); clearTimeout(timer);
+      timer = setTimeout(() => { b.classList.remove('armed'); if (labelEl.lastChild) labelEl.lastChild.textContent = orig(); }, 3000);
+      return;
+    }
+    clearTimeout(timer); b.classList.remove('armed'); if (labelEl.lastChild) labelEl.lastChild.textContent = orig();
+    action();
+  });
+}
+ 
+/* pencil only */
+$('#pencilOnly').checked = !!app.settings.pencilOnly;
+$('#pencilOnly').addEventListener('change', (e) => { app.settings.pencilOnly = e.target.checked; LS.set('settings', app.settings); });
+ 
+/* board name */
+$('#boardName').addEventListener('change', (e) => { const n = e.target.value.trim() || 'Untitled lesson'; e.target.value = n; dispatch({ k: 'rename', name: n }); });
+$('#boardName').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+ 
+/* ---------- hints, toasts, sheets ---------- */
+let hintTimer = 0, toastTimer = 0;
+function showHint(t, ms = 3500) { const el = $('#hint'); el.textContent = t; el.hidden = false; clearTimeout(hintTimer); hintTimer = setTimeout(hideHint, ms); }
+function hideHint() { $('#hint').hidden = true; }
+function toast(t, ms = 3800) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, ms); }
+function openSheet(title, opts = {}) {
+  closeSheet();
+  const bd = h('div', { class: 'backdrop' });
+  const sheet = h('div', { class: 'sheet' + (opts.wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    h('div', { class: 'sheet-head' }, h('h2', {}, title), h('button', { class: 'ib', 'aria-label': 'Close', html: icon('x'), onclick: () => { if (!opts.locked || !opts.locked()) closeSheet(); } })),
+    h('div', { class: 'sheet-body' }));
+  bd.append(sheet);
+  bd.addEventListener('pointerdown', (e) => { if (e.target === bd && !(opts.locked && opts.locked())) closeSheet(); });
+  document.body.append(bd); app.sheet = bd;
+  return sheet.querySelector('.sheet-body');
+}
+function closeSheet() {
+  if (app.sheetCleanup) { const f = app.sheetCleanup; app.sheetCleanup = null; try { f(); } catch {} }
+  if (app.sheet) { app.sheet.remove(); app.sheet = null; }
+}
+ 
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input, textarea, select') || !textEd.hidden) return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod) return;
+  if (e.key === ' ' && app.codeSel) { e.preventDefault(); codeTypeNext(); return; }
+  const map = { c: 'code', v: 'move', p: 'pen', h: 'hl', e: 'eraser', l: 'line', a: 'arrow', r: 'rect', o: 'ellipse', t: 'text', k: 'laser' };
+  const t = map[e.key.toLowerCase()]; if (t) { setTool(t); return; }
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') goPage(1);
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') goPage(-1);
+  if (e.key === 'Escape') closeSheet();
+});
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+$('#stage').addEventListener('touchmove', (e) => { if (e.target !== textEd) e.preventDefault(); }, { passive: false });
+ 
+/* =====================================================================
+   Code blocks: syntax highlighting, line spotlight, typewriter reveal.
+   A code item: { t:'code', x, y, w, h, code, lang, theme, fs, title,
+                  stops:[charIdx], speed (chars/s), reveal (chars shown
+                  or null = all), spot:{a,b}|null, top (first line) }
+   ===================================================================== */
+const MONO = 'ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+const PAUSE_MARK = '⏸';
+const LANGS = {
+  java: { name: 'Java', ext: 'java', line: '//', block: ['/*', '*/'], str: '"\'', triple: '"""', ann: '@',
+    kw: 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long native new package private protected public return short static super switch synchronized this throw throws transient try void volatile while var record yield sealed permits true false null' },
+  kotlin: { name: 'Kotlin', ext: 'kt', line: '//', block: ['/*', '*/'], str: '"\'', triple: '"""', ann: '@',
+    kw: 'as break class continue do else false for fun if in interface is null object package return super this throw true try typealias val var when while by catch constructor init companion data enum override private protected public internal open abstract sealed suspend lateinit import' },
+  javascript: { name: 'JavaScript / TypeScript', ext: 'js', line: '//', block: ['/*', '*/'], str: '"\'`', ann: '@',
+    kw: 'async await break case catch class const continue debugger default delete do else export extends false finally for from function if import in instanceof let new null of return static super switch this throw true try typeof undefined var void while with yield interface type enum implements private public protected readonly as keyof' },
+  python: { name: 'Python', ext: 'py', line: '#', str: '"\'', triple: '"""', ann: '@',
+    kw: 'False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield self' },
+  sql: { name: 'SQL', ext: 'sql', line: '--', block: ['/*', '*/'], str: '\'', ci: true,
+    kw: 'select from where and or not insert into values update set delete create table alter drop index primary key foreign references join left right inner outer full on group by order having limit offset as distinct count sum avg min max null is in like between case when then else end union all exists varchar char int integer bigint numeric decimal text boolean date timestamp default unique with returning asc desc' },
+  yaml: { name: 'YAML', ext: 'yml', line: '#', str: '"\'', kw: 'true false null yes no on off ~', keys: 'yaml' },
+  json: { name: 'JSON', ext: 'json', str: '"', kw: 'true false null', keys: 'json' },
+  bash: { name: 'Shell / Bash', ext: 'sh', line: '#', str: '"\'', vars: true,
+    kw: 'if then else elif fi for in do done while until case esac function return export local echo cd ls cat sudo git mvn gradle docker kubectl npm npx curl source' },
+  xml: { name: 'XML / HTML', ext: 'xml', markup: true },
+  plain: { name: 'Plain text', ext: 'txt' },
+};
+const kwSets = {};
+const kwSet = (lang) => kwSets[lang] || (kwSets[lang] = new Set((LANGS[lang].kw || '').split(/\s+/).filter(Boolean)));
+const CODE_THEMES = {
+  dark: { bg: '#1a1e27', head: '#12151c', border: '#2c3342', text: '#e4e8f0', gutter: '#5d6679', dots: ['#ff5f57', '#febc2e', '#28c840'], title: '#9aa4b8',
+    kw: '#c792ea', str: '#a6da95', num: '#f5a97f', com: '#6c7891', type: '#8aadf4', fn: '#eed49f', ann: '#f0857d', punct: '#91d7e3', tag: '#f0857d', attr: '#eed49f', key: '#8aadf4',
+    spot: 'rgba(250,204,21,.13)', spotBar: '#facc15', caret: '#facc15' },
+  light: { bg: '#fbfbfd', head: '#eceef3', border: '#d5dae3', text: '#1f2430', gutter: '#a2a9b6', dots: ['#ff5f57', '#febc2e', '#28c840'], title: '#5b6475',
+    kw: '#8139d6', str: '#0a7d3b', num: '#b35400', com: '#8a94a6', type: '#0550ae', fn: '#8a4b00', ann: '#cf222e', punct: '#4a5363', tag: '#116329', attr: '#8a4b00', key: '#0550ae',
+    spot: 'rgba(250,204,21,.28)', spotBar: '#d4a017', caret: '#cf222e' },
+};
+ 
+/* ---------- tokenizer ---------- */
+const tokCache = new Map();
+function tokenize(code, lang) {
+  const key = lang + '\u0000' + code;
+  const hit = tokCache.get(key); if (hit) return hit;
+  const L = LANGS[lang] || LANGS.plain, toks = [];
+  const push = (t, s) => { if (!s) return; const last = toks[toks.length - 1]; if (last && last.t === t) last.s += s; else toks.push({ t, s }); };
+  const n = code.length, kws = kwSet(lang in LANGS ? lang : 'plain');
+  let i = 0;
+  const isW = (c) => /[A-Za-z0-9_$]/.test(c || '');
+  if (L.markup) {
+    while (i < n) {
+      if (code.startsWith('<!--', i)) { const e = code.indexOf('-->', i + 4); const j = e < 0 ? n : e + 3; push('com', code.slice(i, j)); i = j; continue; }
+      if (code[i] === '<') {
+        const e = code.indexOf('>', i); const j = e < 0 ? n : e + 1; const tag = code.slice(i, j);
+        const m = /^(<\/?[?!]?)([\w:.-]*)/.exec(tag); push('punct', m[1]); push('tag', m[2]);
+        let k = m[0].length;
+        while (k < tag.length) {
+          const rest = tag.slice(k);
+          let mm;
+          if ((mm = /^\s+/.exec(rest))) { push('text', mm[0]); k += mm[0].length; }
+          else if ((mm = /^[\w:.-]+/.exec(rest))) { push('attr', mm[0]); k += mm[0].length; }
+          else if ((mm = /^("[^"]*"?|'[^']*'?)/.exec(rest))) { push('str', mm[0]); k += mm[0].length; }
+          else { push('punct', rest[0]); k++; }
+        }
+        i = j; continue;
+      }
+      const e = code.indexOf('<', i); const j = e < 0 ? n : e; push('text', code.slice(i, j)); i = j;
+    }
+  } else {
+    let lineStart = true;
+    while (i < n) {
+      const c = code[i];
+      if (c === '\n') { push('text', c); i++; lineStart = true; continue; }
+      if (L.block && code.startsWith(L.block[0], i)) { const e = code.indexOf(L.block[1], i + L.block[0].length); const j = e < 0 ? n : e + L.block[1].length; push('com', code.slice(i, j)); i = j; continue; }
+      if (L.line && code.startsWith(L.line, i) && (L.line !== '#' || !isW(code[i - 1]))) { const e = code.indexOf('\n', i); const j = e < 0 ? n : e; push('com', code.slice(i, j)); i = j; continue; }
+      if (L.triple && code.startsWith(L.triple, i)) { const e = code.indexOf(L.triple, i + 3); const j = e < 0 ? n : e + 3; push('str', code.slice(i, j)); i = j; lineStart = false; continue; }
+      if (L.str && L.str.includes(c)) {
+        let j = i + 1; while (j < n && code[j] !== c && (c === '`' || code[j] !== '\n')) { if (code[j] === '\\') j++; j++; }
+        j = Math.min(n, j + 1);
+        const s = code.slice(i, j);
+        const isKey = L.keys && /^\s*:/.test(code.slice(j, j + 40));
+        push(isKey ? 'key' : 'str', s); i = j; lineStart = false; continue;
+      }
+      if (L.keys === 'yaml' && lineStart) {
+        const m = /^(\s*(?:-\s+)?)([\w.\-/]+)(\s*:)(?=\s|$)/.exec(code.slice(i, i + 200));
+        if (m) { push('text', m[1]); push('key', m[2]); push('punct', m[3]); i += m[0].length; lineStart = false; continue; }
+      }
+      if (L.ann && c === L.ann && /[A-Za-z_]/.test(code[i + 1] || '')) { let j = i + 1; while (j < n && /[\w.]/.test(code[j])) j++; push('ann', code.slice(i, j)); i = j; lineStart = false; continue; }
+      if (L.vars && c === '$') { const m = /^\$(\{[^}]*\}|\w+|.)/.exec(code.slice(i)); push('ann', m[0]); i += m[0].length; lineStart = false; continue; }
+      if (/[0-9]/.test(c) && !isW(code[i - 1])) { const m = /^(0x[0-9a-fA-F_]+|[0-9][0-9_]*(\.[0-9_]+)?([eE][+-]?\d+)?[lLfFdD]?)/.exec(code.slice(i)); push('num', m[0]); i += m[0].length; lineStart = false; continue; }
+      if (/[A-Za-z_$]/.test(c)) {
+        let j = i + 1; while (j < n && isW(code[j])) j++;
+        const w = code.slice(i, j), look = code.slice(j).match(/^\s*(.)/);
+        let t = 'text';
+        if (kws.has(L.ci ? w.toLowerCase() : w)) t = 'kw';
+        else if (look && look[1] === '(' && lang !== 'sql') t = 'fn';
+        else if (/^[A-Z]/.test(w) && !L.ci && !['yaml', 'plain', 'bash'].includes(lang)) t = 'type';
+        push(t, w); i = j; lineStart = false; continue;
+      }
+      if (/\s/.test(c)) { let j = i + 1; while (j < n && /[^\S\n]/.test(code[j])) j++; push('text', code.slice(i, j)); i = j; continue; }
+      push(/[{}()[\];,.<>=+\-*/%!&|^~?:]/.test(c) && lang !== 'plain' ? 'punct' : 'text', c); i++; lineStart = false;
+    }
+  }
+  // split into lines
+  const lines = [[]], starts = [0];
+  let off = 0;
+  for (const tk of toks) {
+    const parts = tk.s.split('\n');
+    parts.forEach((p, k) => {
+      if (k > 0) { off += 1; lines.push([]); starts.push(off); }
+      if (p) lines[lines.length - 1].push({ t: tk.t, s: p });
+      off += p.length;
+    });
+  }
+  const out = { lines, starts };
+  if (tokCache.size > 60) tokCache.delete(tokCache.keys().next().value);
+  tokCache.set(key, out);
+  return out;
+}
+ 
+/* ---------- metrics + layout ---------- */
+const metricCache = new Map();
+function codeMetrics(fs) {
+  let m = metricCache.get(fs);
+  if (!m) { measureCtx.font = `${fs}px ${MONO}`; m = { fs, cw: measureCtx.measureText('MMMMMMMMMM').width / 10, lh: Math.round(fs * 1.5), head: Math.round(fs * 1.7), pad: Math.round(fs * 0.75) }; metricCache.set(fs, m); }
+  return m;
+}
+function codeMaxLines(it) { const m = codeMetrics(it.fs); return Math.max(3, Math.floor((BH - 100 - m.head - m.pad * 2) / m.lh)); }
+function codeSize(it) {
+  const m = codeMetrics(it.fs), lines = it.code.split('\n'), n = lines.length;
+  const vis = Math.min(n, codeMaxLines(it));
+  const maxLen = Math.max(24, ...lines.map(l => l.length));
+  const gutter = String(n).length * m.cw;
+  return { w: Math.min(BW - 60, Math.ceil(m.pad + gutter + m.pad * 1.3 + maxLen * m.cw + m.pad * 1.5)), h: Math.ceil(m.head + m.pad * 2 + vis * m.lh) };
+}
+const codeLen = (it) => it.code.length;
+function revealAt(it, now) {
+  if (it.reveal == null) return Infinity;
+  const a = it.anim;
+  if (a && !a.done && now != null) {
+    const v = a.from + Math.max(0, now - a.t0) / 1000 * a.cps;
+    return Math.min(a.to, Math.floor(v));
+  }
+  return it.reveal;
+}
+function stripAnims(board) {
+  for (const p of board.pages || []) for (const it of p.items || []) if (it.anim) delete it.anim;
+}
+const lineOfChar = (starts, c) => { let lo = 0, hi = starts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= c) lo = mid; else hi = mid - 1; } return lo; };
+function codeView(it, now) {
+  const tk = tokenize(it.code, it.lang), n = tk.lines.length, vis = Math.min(n, codeMaxLines(it));
+  const len = codeLen(it), shown = Math.min(len, revealAt(it, now)), partial = shown < len;
+  const caretLine = partial ? lineOfChar(tk.starts, shown) : -1;
+  let top = clamp(it.top || 0, 0, Math.max(0, n - vis));
+  if (partial) { if (caretLine >= top + vis) top = caretLine - vis + 1; if (caretLine < top) top = caretLine; }
+  return { tk, n, vis, len, shown, partial, caretLine, top };
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function drawCode(ctx, it, now) {
+  const th = CODE_THEMES[it.theme] || CODE_THEMES.dark, m = codeMetrics(it.fs), v = codeView(it, now);
+  const { x, y, w, h } = it, r = Math.round(m.fs * 0.55);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+  roundRectPath(ctx, x, y, w, h, r); ctx.fillStyle = th.bg; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.save(); roundRectPath(ctx, x, y, w, h, r); ctx.clip();
+  ctx.fillStyle = th.head; ctx.fillRect(x, y, w, m.head);
+  const dy = y + m.head / 2, dr = m.fs * 0.22;
+  th.dots.forEach((c, k) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + m.pad + k * dr * 3.2, dy, dr, 0, Math.PI * 2); ctx.fill(); });
+  ctx.fillStyle = th.title; ctx.font = `600 ${Math.round(m.fs * 0.62)}px ${TEXT_FONT}`; ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center'; ctx.fillText(it.title || (LANGS[it.lang] || LANGS.plain).name, x + w / 2, dy);
+  if (v.n > v.vis) { ctx.textAlign = 'right'; ctx.font = `${Math.round(m.fs * 0.55)}px ${MONO}`; ctx.fillText(`${v.top + 1}–${Math.min(v.n, v.top + v.vis)} / ${v.n}`, x + w - m.pad, dy); }
+  // body
+  const bodyY = y + m.head + m.pad, gutterW = String(v.n).length * m.cw, gx = x + m.pad + gutterW, cx = gx + m.pad * 1.3;
+  ctx.beginPath(); ctx.rect(x, y + m.head, w, h - m.head); ctx.clip();
+  ctx.textBaseline = 'top';
+  const spot = it.spot;
+  if (spot) {
+    for (let li = Math.max(spot.a, v.top); li <= Math.min(spot.b, v.top + v.vis - 1); li++) {
+      const ly = bodyY + (li - v.top) * m.lh;
+      ctx.fillStyle = th.spot; ctx.fillRect(x, ly, w, m.lh);
+      ctx.fillStyle = th.spotBar; ctx.fillRect(x, ly, Math.max(4, m.fs * 0.16), m.lh);
+    }
+  }
+  const ty = (m.lh - m.fs) / 2;
+  for (let li = v.top; li < Math.min(v.n, v.top + v.vis); li++) {
+    const start = v.tk.starts[li];
+    if (v.partial && start > v.shown) break;
+    const ly = bodyY + (li - v.top) * m.lh + ty;
+    ctx.globalAlpha = spot && (li < spot.a || li > spot.b) ? 0.3 : 1;
+    ctx.fillStyle = th.gutter; ctx.font = `${m.fs}px ${MONO}`; ctx.textAlign = 'right';
+    ctx.fillText(String(li + 1), gx, ly);
+    ctx.textAlign = 'left';
+    let px = cx, off = start;
+    for (const tk of v.tk.lines[li]) {
+      const s = v.partial ? tk.s.slice(0, Math.max(0, v.shown - off)) : tk.s;
+      if (s) { ctx.fillStyle = th[tk.t] || th.text; ctx.font = (tk.t === 'com' ? 'italic ' : '') + `${m.fs}px ${MONO}`; ctx.fillText(s, px, ly); }
+      px += tk.s.length * m.cw; off += tk.s.length;
+      if (v.partial && off >= v.shown) break;
+    }
+    if (v.partial && li === v.caretLine) {
+      ctx.globalAlpha = 1; ctx.fillStyle = th.caret;
+      ctx.fillRect(cx + (v.shown - start) * m.cw, ly - m.fs * 0.05, Math.max(3, m.fs * 0.12), m.fs * 1.15);
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = th.border; roundRectPath(ctx, x, y, w, h, r); ctx.stroke();
+  ctx.restore();
+}
+function codeLineAt(it, by) {
+  const m = codeMetrics(it.fs), v = codeView(it, performance.now());
+  const rel = by - (it.y + m.head + m.pad);
+  if (rel < 0) return -1;
+  const li = v.top + Math.floor(rel / m.lh);
+  return li < Math.min(v.n, v.top + v.vis) ? li : -1;
+}
+ 
+/* ---------- editor sheet ---------- */
+const CODE_SPEEDS = [{ v: 12, n: 'Slow' }, { v: 25, n: 'Normal' }, { v: 50, n: 'Fast' }, { v: 120, n: 'Very fast' }];
+const CODE_SIZES = [{ v: 22, n: 'S' }, { v: 26, n: 'M' }, { v: 32, n: 'L' }, { v: 40, n: 'XL' }];
+const codePrefs = () => ({ lang: 'java', theme: 'dark', fs: 26, speed: 25, typewriter: true, ...LS.get('codePrefs', {}) });
+const withMarks = (it) => { if (!it.stops || !it.stops.length) return it.code; let out = '', last = 0; [...it.stops].sort((a, b) => a - b).forEach(s => { out += it.code.slice(last, s) + PAUSE_MARK; last = s; }); return out + it.code.slice(last); };
+function parseMarks(raw) {
+  const text = raw.replace(/\t/g, '    ').replace(/\r\n?/g, '\n');
+  const stops = []; let code = '';
+  for (const ch of text) { if (ch === PAUSE_MARK) { if (code.length && stops[stops.length - 1] !== code.length) stops.push(code.length); } else code += ch; }
+  return { code: code.replace(/\s+$/, ''), stops: stops.filter(s => s > 0 && s < code.replace(/\s+$/, '').length) };
+}
+function openCodeEditor(existing, at) {
+  const pref = codePrefs();
+  const st = existing ? { lang: existing.lang, theme: existing.theme, fs: existing.fs, speed: existing.speed || 25, typewriter: existing.reveal != null, title: existing.title || '' } : { ...pref, title: '' };
+  const body = openSheet(existing ? 'Edit code block' : 'New code block', { wide: true });
+  const seg = (opts, key, fmt) => {
+    const box = h('div', { class: 'seg' });
+    opts.forEach(o => box.append(h('button', { 'aria-pressed': String(st[key] === o.v), onclick: (e) => { st[key] = o.v; $$('button', box).forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget))); if (key === 'typewriter') speedRow.hidden = !o.v; } }, fmt ? fmt(o) : o.n)));
+    return box;
+  };
+  const langSel = h('select', { id: 'codeLang', onchange: (e) => st.lang = e.target.value }, Object.entries(LANGS).map(([k, l]) => h('option', { value: k, selected: k === st.lang }, l.name)));
+  const titleIn = h('input', { class: 'input', id: 'codeTitle', placeholder: 'e.g. UserService.java', value: st.title, autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
+  const ta = h('textarea', { id: 'codeText', class: 'codearea', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off', autocomplete: 'off', placeholder: 'Paste or type your code here…' });
+  ta.value = existing ? withMarks(existing) : '';
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Tab') { e.preventDefault(); ta.setRangeText('    ', ta.selectionStart, ta.selectionEnd, 'end'); } });
+  const speedRow = h('div', { class: 'field' }, h('label', {}, 'Typing speed'), seg(CODE_SPEEDS, 'speed'));
+  speedRow.hidden = !st.typewriter;
+  body.append(
+    h('div', { class: 'grid2' },
+      h('div', { class: 'field' }, h('label', { for: 'codeLang' }, 'Language'), langSel),
+      h('div', { class: 'field' }, h('label', { for: 'codeTitle' }, 'File name (optional)'), titleIn)),
+    h('div', { class: 'field' },
+      h('div', { class: 'row', style: 'justify-content:space-between' },
+        h('label', { for: 'codeText' }, 'Code'),
+        btn('Insert pause point ' + PAUSE_MARK, () => { ta.focus(); ta.setRangeText(PAUSE_MARK, ta.selectionStart, ta.selectionEnd, 'end'); }, {})),
+      ta,
+      h('p', { class: 'muted small' }, `When the code types itself out, it stops at each ${PAUSE_MARK} until you tap Type next. Put one after each part you want to explain.`)),
+    h('div', { class: 'grid2' },
+      h('div', { class: 'field' }, h('label', {}, 'When recording'), seg([{ v: true, n: 'Type it out' }, { v: false, n: 'Show it all' }], 'typewriter')),
+      speedRow),
+    h('div', { class: 'grid2' },
+      h('div', { class: 'field' }, h('label', {}, 'Theme'), seg([{ v: 'dark', n: 'Dark' }, { v: 'light', n: 'Light' }], 'theme')),
+      h('div', { class: 'field' }, h('label', {}, 'Text size'), seg(CODE_SIZES, 'fs'))),
+    h('div', { class: 'row' },
+      btn(existing ? 'Update block' : 'Add to board', () => {
+        const { code, stops } = parseMarks(ta.value);
+        if (!code.trim()) { toast('Add some code first.'); return; }
+        st.title = titleIn.value.trim();
+        LS.set('codePrefs', { lang: st.lang, theme: st.theme, fs: st.fs, speed: st.speed, typewriter: st.typewriter });
+        const props = { code, stops, lang: st.lang, theme: st.theme, fs: st.fs, speed: st.speed, title: st.title, reveal: st.typewriter ? 0 : null, spot: null, top: 0, anim: null };
+        const sz = codeSize(props); props.w = sz.w; props.h = sz.h;
+        const pid = app.scene.pageId;
+        if (existing) {
+          const old = {}; Object.keys(props).forEach(k => old[k] = existing[k] === undefined ? null : clone(existing[k]));
+          old.anim = null;
+          commit([{ k: 'set', p: pid, id: existing.id, props }], [{ k: 'set', p: pid, id: existing.id, props: old }]);
+          closeSheet(); selectCode(existing.id);
+        } else {
+          const item = { id: uid(), t: 'code', ...props, x: round1(clamp(at[0], 20, BW - props.w - 20)), y: round1(clamp(at[1], 20, BH - props.h - 20)) };
+          delete item.anim;
+          commit([{ k: 'add', p: pid, item }], [{ k: 'remove', p: pid, ids: [item.id] }]);
+          closeSheet(); selectCode(item.id);
+          showHint(st.typewriter ? 'Hidden until you tap Type next. Tap a line to spotlight it.' : 'Tap a line to spotlight it.', 4500);
+        }
+      }, { icon: 'plus', cls: 'primary' }),
+      btn('Cancel', closeSheet)));
+  setTimeout(() => ta.focus({ preventScroll: true }), 50);
+}
+ 
+/* ---------- selection + presenter bar ---------- */
+const codeBar = $('#codeBar'), codeBox = $('#codeSelBox');
+const selectedCode = () => app.codeSel ? app.scene.page.items.find(i => i.id === app.codeSel && i.t === 'code') : null;
+function selectCode(id) { app.codeSel = id; updateCodeUI(); }
+function updateCodeUI() {
+  const it = selectedCode();
+  if (!it) { app.codeSel = null; codeBar.hidden = true; codeBox.hidden = true; return; }
+  const vr = view.getBoundingClientRect(), sr = $('#stage').getBoundingClientRect(), s = vr.width / BW;
+  Object.assign(codeBox.style, { left: (vr.left - sr.left + it.x * s - 5) + 'px', top: (vr.top - sr.top + it.y * s - 5) + 'px', width: (it.w * s + 10) + 'px', height: (it.h * s + 10) + 'px' });
+  codeBox.hidden = false; codeBar.hidden = false;
+  const v = codeView(it, performance.now()), allShown = it.reveal == null || it.reveal >= v.len;
+  $('#cbNext').disabled = allShown;
+  $('#cbAll').disabled = allShown;
+  $('#cbHide').disabled = it.reveal === 0;
+  $('#cbSpot').disabled = !it.spot;
+  $('#cbUp').hidden = $('#cbDown').hidden = v.n <= v.vis;
+  $('#cbUp').disabled = (it.top || 0) <= 0;
+  $('#cbDown').disabled = (it.top || 0) >= v.n - v.vis;
+  const shown = Math.min(v.len, it.reveal == null ? v.len : it.reveal);
+  $('#cbState').textContent = it.reveal == null ? 'All shown' : shown === 0 ? 'Hidden' : `${Math.round(shown / v.len * 100)}% typed`;
+}
+function codeReveal(to, cps) {
+  const it = selectedCode(); if (!it) return;
+  const pid = app.scene.pageId, old = it.reveal == null ? codeLen(it) : it.reveal;
+  if (to === old && it.reveal != null) return;
+  commit([{ k: 'reveal', p: pid, id: it.id, to, cps }], [{ k: 'reveal', p: pid, id: it.id, to: old, cps: 0 }]);
+  updateCodeUI();
+}
+function codeTypeNext() {
+  const it = selectedCode(); if (!it) return;
+  const len = codeLen(it), cur = it.reveal == null ? len : it.reveal;
+  if (cur >= len) return;
+  const next = (it.stops || []).filter(s => s > cur).sort((a, b) => a - b)[0] ?? len;
+  codeReveal(next, it.speed || 25);
+}
+function codeSetProps(props) {
+  const it = selectedCode(); if (!it) return;
+  const pid = app.scene.pageId, old = {}; Object.keys(props).forEach(k => old[k] = it[k] === undefined ? null : clone(it[k]));
+  commit([{ k: 'set', p: pid, id: it.id, props }], [{ k: 'set', p: pid, id: it.id, props: old }]);
+  updateCodeUI();
+}
+$('#cbNext').addEventListener('click', codeTypeNext);
+$('#cbAll').addEventListener('click', () => { const it = selectedCode(); if (it) codeReveal(codeLen(it), 0); });
+$('#cbHide').addEventListener('click', () => codeReveal(0, 0));
+$('#cbSpot').addEventListener('click', () => codeSetProps({ spot: null }));
+$('#cbUp').addEventListener('click', () => { const it = selectedCode(); if (it) codeSetProps({ top: Math.max(0, (it.top || 0) - 5) }); });
+$('#cbDown').addEventListener('click', () => { const it = selectedCode(); if (!it) return; const v = codeView(it); codeSetProps({ top: Math.min(v.n - v.vis, (it.top || 0) + 5) }); });
+$('#cbEdit').addEventListener('click', () => { const it = selectedCode(); if (it) openCodeEditor(it); });
+const cbDel = $('#cbDel');
+armTwoTap(cbDel, 'Tap again', () => {
+  const it = selectedCode(); if (!it) return;
+  const pid = app.scene.pageId, idx = app.scene.page.items.indexOf(it);
+  commit([{ k: 'remove', p: pid, ids: [it.id] }], [{ k: 'insert', p: pid, entries: [{ idx, item: clone(it) }] }]);
+  selectCode(null);
+});
+$('#cbDone').addEventListener('click', () => selectCode(null));
+ 
+/* pointer handling for the Code tool (called from the main pointer handlers) */
+function codeDown(e, x, y, pid) {
+  const items = app.scene.page.items;
+  let it = null;
+  for (let i = items.length - 1; i >= 0; i--) if (items[i].t === 'code' && inBox(bounds(items[i]), x, y, 6)) { it = items[i]; break; }
+  if (!it) {
+    if (app.codeSel) { selectCode(null); return; }
+    app.gesture = { tool: 'code', mode: 'new', id: e.pointerId, x, y }; return;
+  }
+  if (app.codeSel !== it.id) { selectCode(it.id); return; }
+  const li = codeLineAt(it, y);
+  if (li < 0) return;
+  app.gesture = { tool: 'code', mode: 'spot', id: e.pointerId, pid, iid: it.id, a: li, b: li, old: it.spot ? { ...it.spot } : null };
+  dispatch({ k: 'set', p: pid, id: it.id, props: { spot: { a: li, b: li } } });
+}
+function codeMove(x, y) {
+  const g = app.gesture; if (g.mode !== 'spot') return;
+  const it = app.scene.page.items.find(i => i.id === g.iid); if (!it) return;
+  const li = codeLineAt(it, y); if (li < 0 || li === g.b) return;
+  g.b = li; dispatch({ k: 'set', p: g.pid, id: g.iid, props: { spot: { a: Math.min(g.a, g.b), b: Math.max(g.a, g.b) } } });
+}
+function codeUp(g, e) {
+  if (g.mode === 'new') { if (e && e.type === 'pointerup') openCodeEditor(null, [g.x, g.y]); return; }
+  if (g.mode !== 'spot') return;
+  let spot = { a: Math.min(g.a, g.b), b: Math.max(g.a, g.b) };
+  if (g.old && g.a === g.b && g.old.a === g.a && g.old.b === g.b) { spot = null; dispatch({ k: 'set', p: g.pid, id: g.iid, props: { spot: null } }); }
+  pushHistory([{ k: 'set', p: g.pid, id: g.iid, props: { spot } }], [{ k: 'set', p: g.pid, id: g.iid, props: { spot: g.old } }]);
+  updateCodeUI();
+}
+ 
+/* ---------- media support ---------- */
+const VIDEO_FAMILIES = [
+  { id: 'mp4', ext: 'mp4', label: 'MP4 (H.264)', note: 'Plays everywhere: Photos, YouTube, PowerPoint, Windows', mimes: ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4;codecs=h264,aac', 'video/mp4'] },
+  { id: 'webm-vp9', ext: 'webm', label: 'WebM (VP9)', note: 'Smaller files for websites and Chrome', mimes: ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp9'] },
+  { id: 'webm-vp8', ext: 'webm', label: 'WebM (VP8)', note: 'WebM for older web players', mimes: ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm'] },
+];
+const AUDIO_MIMES = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+const canRecord = () => typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream;
+const isSupported = (m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } };
+function videoFormats() {
+  if (!canRecord()) return [];
+  return VIDEO_FAMILIES.map(f => ({ ...f, mime: f.mimes.find(isSupported) })).filter(f => f.mime);
+}
+function chosenFormat() { const fs = videoFormats(); return fs.find(f => f.id === app.settings.fmt) || fs[0] || null; }
+const extFor = (mime) => /mp4/.test(mime) ? (/^audio/.test(mime) ? 'm4a' : 'mp4') : /webm/.test(mime) ? 'webm' : /ogg/.test(mime) ? 'ogg' : 'bin';
+const RES = { 720: [1280, 720], 1080: [1920, 1080] };
+const bitrate = (h) => h >= 1080 ? 6_000_000 : h >= 720 ? 3_500_000 : 2_000_000;
+ 
+/* ---------- recording ---------- */
+function recClock() {
+  const r = app.rec; if (!r) return 0;
+  const now = r.state === 'paused' ? r.pausedAt : performance.now();
+  return Math.max(0, now - r.t0 - r.pausedTotal);
+}
+function updateRecClock() {
+  const r = app.rec;
+  $('#recTime').textContent = fmtTime(r ? recClock() : 0);
+  if (r && r.an && r.state === 'recording') {
+    r.an.getByteTimeDomainData(r.buf);
+    let peak = 0; for (const v of r.buf) peak = Math.max(peak, Math.abs(v - 128));
+    $('#meter b').style.height = Math.min(100, peak / 64 * 100) + '%';
+  } else $('#meter b').style.height = '0';
+}
+function updateRecUI() {
+  const r = app.rec, on = !!r;
+  $('#btnRec').classList.toggle('live', on);
+  $('#btnRec span').textContent = !on ? 'Record' : r.state === 'paused' ? 'Paused' : r.state === 'stopping' ? 'Saving…' : 'Recording';
+  $('#btnRec').disabled = on;
+  $('#btnPause').hidden = !on || r.state === 'stopping';
+  $('#btnStop').hidden = !on || r.state === 'stopping';
+  $('#btnPause').innerHTML = icon(r?.state === 'paused' ? 'play' : 'pause');
+  $('#btnPause').setAttribute('aria-label', r?.state === 'paused' ? 'Resume' : 'Pause');
+  $('#top').classList.toggle('recording', on);
+  $('#btnMic').disabled = on;
+  $('#btnMic').innerHTML = icon(app.settings.mic ? 'mic' : 'micoff');
+  $('#btnMic').setAttribute('aria-pressed', String(!!app.settings.mic));
+  updateRecClock();
+}
+async function countdown() {
+  const el = $('#countdown'); el.hidden = false;
+  for (const n of [3, 2, 1]) { el.textContent = n; await sleep(800); }
+  el.hidden = true;
+}
+async function startRecording() {
+  if (app.rec) return;
+  const fmt = chosenFormat();
+  if (!fmt) { toast('This browser cannot record video. Use Safari on iPadOS 14.5 or later.'); return; }
+  commitText(); cancelGesture(); closeSheet();
+  let mic = null;
+  if (app.settings.mic) {
+    if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
+      toast('Microphone needs the page opened over https://. Recording without sound.', 5000);
+    } else {
+      try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+      catch { toast('Microphone access was blocked. Allow it in Safari settings for this site. Recording without sound.', 6000); }
+    }
+  }
+  const [w, hh] = RES[app.settings.res] || RES[1080];
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+  const ctx = cv.getContext('2d');
+  app.scene.render(ctx, w, hh, performance.now());
+  if (app.settings.countdown) await countdown();
+  const vstream = cv.captureStream(30);
+  const tracks = [...vstream.getVideoTracks(), ...(mic ? mic.getAudioTracks() : [])];
+  let vrec;
+  try { vrec = new MediaRecorder(new MediaStream(tracks), { mimeType: fmt.mime, videoBitsPerSecond: bitrate(hh), audioBitsPerSecond: 128000 }); }
+  catch { try { vrec = new MediaRecorder(new MediaStream(tracks)); } catch { toast('Recording could not start on this device.'); mic?.getTracks().forEach(t => t.stop()); return; } }
+  let arec = null;
+  const amime = mic ? AUDIO_MIMES.find(isSupported) : null;
+  if (mic) { try { arec = new MediaRecorder(new MediaStream(mic.getAudioTracks().map(t => t.clone())), amime ? { mimeType: amime, audioBitsPerSecond: 128000 } : {}); } catch { arec = null; } }
+  const r = app.rec = {
+    state: 'recording', fmt, w, h: hh, cv, ctx, vstream, mic, vrec, arec, vchunks: [], achunks: [],
+    log: [], t0: performance.now(), pausedTotal: 0, pausedAt: 0, snapshot: null, wake: null,
+  };
+  app.board.cur = app.scene.pageId;
+  r.snapshot = clone(app.board);
+  vrec.ondataavailable = (e) => { if (e.data && e.data.size) r.vchunks.push(e.data); };
+  if (arec) arec.ondataavailable = (e) => { if (e.data && e.data.size) r.achunks.push(e.data); };
+  if (mic) {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      r.ac = new AC(); const src = r.ac.createMediaStreamSource(mic); r.an = r.ac.createAnalyser(); r.an.fftSize = 512;
+      src.connect(r.an); r.buf = new Uint8Array(r.an.fftSize);
+    } catch { r.an = null; }
+  }
+  try { r.wake = await navigator.wakeLock?.request('screen'); } catch {}
+  vrec.start(1000); arec?.start(1000);
+  updateRecUI(); requestRender();
+  showHint(mic ? 'Recording with your voice. Pause any time.' : 'Recording without sound.', 2500);
+}
+function togglePause() {
+  const r = app.rec; if (!r) return;
+  if (r.state === 'recording') {
+    cancelGesture();
+    try { r.vrec.pause(); r.arec?.pause(); } catch {}
+    r.state = 'paused'; r.pausedAt = performance.now();
+  } else if (r.state === 'paused') {
+    r.pausedTotal += performance.now() - r.pausedAt;
+    try { r.vrec.resume(); r.arec?.resume(); } catch {}
+    r.state = 'recording';
+  }
+  updateRecUI(); requestRender();
+}
+const stopRecorder = (rec) => new Promise(res => {
+  if (!rec || rec.state === 'inactive') return res();
+  rec.addEventListener('stop', () => res(), { once: true });
+  try { rec.stop(); } catch { res(); }
+});
+async function stopRecording() {
+  const r = app.rec; if (!r || r.state === 'stopping') return;
+  cancelGesture(); commitText();
+  if (r.state === 'paused') { r.pausedTotal += performance.now() - r.pausedAt; }
+  const duration = Math.max(0, performance.now() - r.t0 - r.pausedTotal);
+  r.state = 'stopping'; updateRecUI();
+  await Promise.all([stopRecorder(r.vrec), stopRecorder(r.arec)]);
+  r.vstream.getTracks().forEach(t => t.stop());
+  r.mic?.getTracks().forEach(t => t.stop());
+  try { r.arec?.stream.getTracks().forEach(t => t.stop()); } catch {}
+  try { r.ac?.close(); } catch {}
+  try { await r.wake?.release(); } catch {}
+  app.scene.dropCache(r.w, r.h);
+  const vmime = (r.vrec.mimeType || r.fmt.mime);
+  const amime = r.arec ? (r.arec.mimeType || 'audio/mp4') : '';
+  const take = {
+    id: uid(), boardId: app.board.id, name: `${app.board.name} · ${fmtDate(Date.now())}`, created: Date.now(), duration,
+    mime: vmime, video: new Blob(r.vchunks, { type: vmime.split(';')[0] }),
+    audioMime: amime, audio: r.achunks.length ? new Blob(r.achunks, { type: amime.split(';')[0] }) : null,
+    snapshot: r.snapshot, log: r.log, w: r.w, h: r.h,
+  };
+  app.rec = null; updateRecUI(); requestRender();
+  try { await DB.put('takes', take); } catch { sessionTakes.push(take); toast('Storage is full or blocked, so this recording is kept only until you close the page. Save it now.', 6000); }
+  openTake(take);
+}
+const sessionTakes = [];
+$('#btnRec').addEventListener('click', startRecording);
+$('#btnPause').addEventListener('click', togglePause);
+$('#btnStop').addEventListener('click', stopRecording);
+$('#btnMic').addEventListener('click', () => { app.settings.mic = !app.settings.mic; LS.set('settings', app.settings); updateRecUI(); toast(app.settings.mic ? 'Microphone on for the next recording.' : 'Microphone off: recordings will be silent.'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (saveTimer) saveNow(); if (app.rec?.state === 'recording') togglePause(); } });
+ 
+/* ---------- replay engine (re-export, GIF, last frame) ---------- */
+async function makeReplay(take, w, hh, opts = {}) {
+  const board = clone(take.snapshot);
+  await preloadImages(imageSrcs(board, take.log));
+  const sc = new Scene(board);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+  const ctx = cv.getContext('2d', opts.read ? { willReadFrequently: true } : undefined);
+  let i = 0;
+  const seek = (t) => { while (i < take.log.length && take.log[i].t <= t) { sc.apply(take.log[i].a, take.log[i].t); i++; } };
+  return { sc, cv, ctx, seek, render: (t) => sc.render(ctx, w, hh, t) };
+}
+async function rerenderVideo(take, fmt, w, hh, onProgress, isCancelled) {
+  const rp = await makeReplay(take, w, hh);
+  rp.seek(0); rp.render(0);
+  const stream = rp.cv.captureStream(30), tracks = [...stream.getVideoTracks()];
+  let ac = null, src = null;
+  if (take.audio) {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; ac = new AC(); await ac.resume();
+      const buf = await ac.decodeAudioData(await take.audio.arrayBuffer());
+      const dest = ac.createMediaStreamDestination(); src = ac.createBufferSource(); src.buffer = buf; src.connect(dest);
+      tracks.push(...dest.stream.getAudioTracks());
+    } catch { try { ac?.close(); } catch {} ac = null; src = null; toast('The narration could not be decoded, so this copy is silent.'); }
+  }
+  const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: fmt.mime, videoBitsPerSecond: bitrate(hh), audioBitsPerSecond: 128000 });
+  const chunks = []; rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  const done = new Promise(r => rec.addEventListener('stop', r, { once: true }));
+  rec.start(1000);
+  let clock;
+  if (ac && src) { const t0 = ac.currentTime + 0.08; src.start(t0); clock = () => Math.max(0, (ac.currentTime - t0) * 1000); }
+  else { const t0 = performance.now(); clock = () => performance.now() - t0; }
+  let cancelled = false;
+  await new Promise(resolve => {
+    const tick = () => {
+      if (isCancelled()) { cancelled = true; return resolve(); }
+      const t = clock(); rp.seek(t); rp.render(t); onProgress(Math.min(1, t / Math.max(1, take.duration)));
+      if (t >= take.duration + 300) resolve(); else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  rec.stop(); await done;
+  stream.getTracks().forEach(t => t.stop()); try { src?.stop(); } catch {} try { ac?.close(); } catch {}
+  if (cancelled) return null;
+  return new Blob(chunks, { type: (rec.mimeType || fmt.mime).split(';')[0] });
+}
+let gifenc = null;
+async function loadGifenc() {
+  if (gifenc) return gifenc;
+  const url = URL.createObjectURL(new Blob([$('#gifenc-src').textContent], { type: 'text/javascript' }));
+  try { gifenc = await import(url); } finally { URL.revokeObjectURL(url); }
+  return gifenc;
+}
+async function renderGif(take, w, fps, onProgress, isCancelled) {
+  const { GIFEncoder, quantize, applyPalette } = await loadGifenc();
+  const hh = Math.round(w * 9 / 16), rp = await makeReplay(take, w, hh, { read: true });
+  const gif = GIFEncoder(), step = 1000 / fps;
+  let pending = null, lastVer = -1, first = true;
+  const flush = () => { if (!pending) return; gif.writeFrame(pending.index, w, hh, { palette: pending.palette, delay: Math.round(pending.delay), repeat: first ? 0 : undefined }); first = false; pending = null; };
+  for (let t = 0; t <= take.duration + step; t += step) {
+    if (isCancelled()) return null;
+    rp.seek(t);
+    const changed = rp.sc.version !== lastVer || rp.sc.laserActive(t) || rp.sc.live || rp.sc.animActive();
+    lastVer = rp.sc.version;
+    if (!changed && pending) { pending.delay += step; }
+    else {
+      flush(); rp.render(t);
+      const data = rp.ctx.getImageData(0, 0, w, hh).data;
+      const palette = quantize(data, 256), index = applyPalette(data, palette);
+      pending = { index, palette, delay: step };
+      onProgress(Math.min(1, t / Math.max(1, take.duration)));
+      await sleep(0);
+    }
+  }
+  if (pending) pending.delay += 1500;
+  flush(); gif.finish();
+  return new Blob([gif.bytes()], { type: 'image/gif' });
+}
+async function renderLastFrame(take) {
+  const rp = await makeReplay(take, 1920, 1080);
+  rp.seek(Infinity); rp.sc.live = null; rp.sc.laser = []; rp.render(take.duration + 5000);
+  return await new Promise(r => rp.cv.toBlob(r, 'image/png'));
+}
+ 
+/* ---------- delivering files ---------- */
+function deliver(blob, filename, back) {
+  const body = openSheet('Your file is ready');
+  const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+  let canShare = false; try { canShare = !!navigator.canShare && navigator.canShare({ files: [file] }); } catch {}
+  body.append(h('div', { class: 'item', style: 'border:1px solid var(--line);border-radius:12px' },
+    h('div', { class: 'grow' }, h('div', { class: 'name' }, filename), h('div', { class: 'muted small' }, fmtSize(blob.size)))));
+  const row = h('div', { class: 'row' });
+  if (canShare) row.append(btn(/^video/.test(blob.type) ? 'Share or Save to Photos' : 'Share or Save to Files', async () => {
+    try { await navigator.share({ files: [file], title: filename }); } catch (e) { if (e && e.name !== 'AbortError') toast('Sharing failed. Try Download instead.'); }
+  }, { icon: 'share', cls: 'primary' }));
+  row.append(btn('Download', () => {
+    const url = URL.createObjectURL(blob); const a = h('a', { href: url, download: filename }); document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('Downloading. On iPad, find it in Files › Downloads.');
+  }, { icon: 'download', cls: canShare ? '' : 'primary' }));
+  if (back) row.append(btn('Back', back));
+  body.append(row);
+  body.append(h('p', { class: 'muted small' }, canShare ? 'Share opens the iPad share sheet: choose Save Video (Photos), Save to Files, AirDrop, or an app.' : 'Download saves to your Downloads folder.'));
+}
+ 
+/* ---------- take sheet ---------- */
+async function openTake(take) {
+  const body = openSheet('Recording', { wide: true, locked: () => busy });
+  let busy = false;
+  const url = URL.createObjectURL(take.video);
+  app.sheetCleanup = () => URL.revokeObjectURL(url);
+  const fmts = videoFormats(), ext = extFor(take.mime);
+  body.append(h('video', { src: url, controls: true, playsinline: true, preload: 'metadata' }));
+  body.append(h('div', { class: 'row' },
+    h('span', { class: 'badge' }, fmtTime(take.duration)), h('span', { class: 'badge' }, ext.toUpperCase() + ' · ' + take.w + '×' + take.h),
+    h('span', { class: 'badge' }, fmtSize(take.video.size)), take.audio ? h('span', { class: 'badge' }, 'with narration') : h('span', { class: 'badge' }, 'silent')));
+  const reopen = () => openTake(take);
+  body.append(h('div', { class: 'row' }, btn(`Save video (.${ext})`, () => deliver(take.video, `${safeName(take.name)}.${ext}`, reopen), { icon: 'download', cls: 'primary' })));
+ 
+  const status = h('div', { hidden: true }, h('p', { class: 'small', id: 'jobText' }, ''), h('div', { class: 'progress' }, h('b', { id: 'jobBar' })), h('div', { class: 'row', style: 'margin-top:8px' }));
+  let cancel = false;
+  const cancelBtn = btn('Cancel', () => { cancel = true; });
+  status.lastChild.append(cancelBtn);
+  const runJob = async (label, fn, filename) => {
+    if (busy) return; busy = true; cancel = false; status.hidden = false;
+    $('#jobText', status).textContent = label; $('#jobBar', status).style.width = '0%';
+    let blob = null;
+    try { blob = await fn(p => { $('#jobBar', status).style.width = Math.round(p * 100) + '%'; }, () => cancel); }
+    catch (e) { console.error(e); toast('That export failed on this device. Try a smaller size or another format.'); }
+    busy = false; status.hidden = true;
+    if (blob) deliver(blob, filename, reopen);
+  };
+ 
+  // convert
+  const fmtSel = h('select', { id: 'convFmt' }, fmts.map(f => h('option', { value: f.id }, `${f.label} — ${f.note}`)));
+  const resSel = h('select', { id: 'convRes' }, h('option', { value: '1080' }, '1080p (1920×1080)'), h('option', { value: '720' }, '720p (1280×720)'), h('option', { value: '480' }, '480p (854×480)'));
+  resSel.value = String(take.h);
+  body.append(h('div', {},
+    h('h3', {}, 'Export in another format or size'),
+    h('div', { class: 'grid2' }, h('div', { class: 'field' }, h('label', { for: 'convFmt' }, 'Format'), fmtSel), h('div', { class: 'field' }, h('label', { for: 'convRes' }, 'Size'), resSel)),
+    h('p', { class: 'muted small', style: 'margin-top:8px' }, `The lesson replays in real time (${fmtTime(take.duration)}) to build the new file. Keep this screen open.`),
+    h('div', { class: 'row', style: 'margin-top:8px' }, btn('Render video', () => {
+      const f = fmts.find(x => x.id === fmtSel.value); if (!f) return;
+      const hh = +resSel.value, w = hh === 480 ? 854 : Math.round(hh * 16 / 9);
+      runJob(`Rendering ${f.label} at ${hh}p…`, (p, c) => rerenderVideo(take, f, w, hh, p, c), `${safeName(take.name)}-${hh}p.${f.ext}`);
+    }, { icon: 'film', disabled: !fmts.length }))));
+ 
+  // gif
+  const gw = h('select', { id: 'gifW' }, h('option', { value: '480' }, '480 px wide'), h('option', { value: '720', selected: true }, '720 px wide'), h('option', { value: '960' }, '960 px wide'));
+  const gf = h('select', { id: 'gifF' }, h('option', { value: '8' }, '8 frames/s (smallest)'), h('option', { value: '12', selected: true }, '12 frames/s'), h('option', { value: '15' }, '15 frames/s (smoothest)'));
+  body.append(h('div', {},
+    h('h3', {}, 'Animated GIF (no sound)'),
+    h('div', { class: 'grid2' }, h('div', { class: 'field' }, h('label', { for: 'gifW' }, 'Width'), gw), h('div', { class: 'field' }, h('label', { for: 'gifF' }, 'Smoothness'), gf)),
+    take.duration > 120000 ? h('p', { class: 'muted small', style: 'margin-top:8px' }, 'Long recordings make very large GIFs. Use video for anything over two minutes.') : null,
+    h('div', { class: 'row', style: 'margin-top:8px' }, btn('Make GIF', () => runJob('Building GIF…', (p, c) => renderGif(take, +gw.value, +gf.value, p, c), `${safeName(take.name)}.gif`), { icon: 'image' }))));
+ 
+  // other
+  const aext = take.audio ? extFor(take.audioMime || take.audio.type) : '';
+  const del = btn('Delete recording', null, { icon: 'trash', cls: 'danger' });
+  armTwoTap(del, 'Tap again to delete', async () => { try { await DB.del('takes', take.id); } catch {} const i = sessionTakes.indexOf(take); if (i >= 0) sessionTakes.splice(i, 1); closeSheet(); toast('Recording deleted.'); });
+  body.append(h('div', {},
+    h('h3', {}, 'More'),
+    h('div', { class: 'row' },
+      take.audio ? btn(`Narration only (.${aext})`, () => deliver(take.audio, `${safeName(take.name)}-narration.${aext}`, reopen), { icon: 'mic' }) : null,
+      btn('Final frame (.png)', () => runJob('Drawing final frame…', async () => renderLastFrame(take), `${safeName(take.name)}.png`), { icon: 'image' }),
+      del)));
+  body.append(status);
+}
+ 
+/* ---------- recordings list ---------- */
+$('#btnTakes').addEventListener('click', async () => {
+  const body = openSheet('Recordings', { wide: true });
+  let takes = [...sessionTakes];
+  try { takes = takes.concat(await DB.all('takes')); } catch {}
+  takes.sort((a, b) => b.created - a.created);
+  if (!takes.length) { body.append(h('p', { class: 'muted' }, 'No recordings yet. Tap Record at the bottom right, talk through your board, then tap Stop.')); return; }
+  const list = h('div', { class: 'list' });
+  takes.forEach(t => list.append(h('div', { class: 'item' },
+    h('div', { class: 'grow' }, h('div', { class: 'name' }, t.name), h('div', { class: 'muted small' }, `${fmtTime(t.duration)} · ${extFor(t.mime).toUpperCase()} · ${fmtSize(t.video.size)}`)),
+    btn('Open', () => openTake(t)))));
+  body.append(list);
+  body.append(h('p', { class: 'muted small' }, 'Recordings are stored in this browser. Save the ones you want to keep to Photos or Files.'));
+});
+ 
+/* ---------- board save / export ---------- */
+function boardFile() { app.board.cur = app.scene.pageId; return new Blob([JSON.stringify({ app: 'lesson-board', version: 1, board: app.board })], { type: 'application/json' }); }
+async function renderPage(page, w, hh) {
+  await preloadImages(page.items.filter(i => i.t === 'image').map(i => i.src));
+  const sc = new Scene({ pages: [page], cur: page.id, name: '' });
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = hh; sc.render(cv.getContext('2d'), w, hh, 0);
+  return cv;
+}
+let jsPdfPromise = null;
+function loadJsPdf() {
+  if (window.jspdf) return Promise.resolve(window.jspdf);
+  if (!jsPdfPromise) jsPdfPromise = new Promise((res, rej) => {
+    const s = h('script', { src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' });
+    s.onload = () => res(window.jspdf); s.onerror = () => { jsPdfPromise = null; rej(new Error('jsPDF failed to load')); };
+    document.head.append(s);
+  });
+  return jsPdfPromise;
+}
+$('#btnExport').addEventListener('click', () => {
+  const body = openSheet('Save and export');
+  const back = () => $('#btnExport').click();
+  body.append(h('div', {}, h('h3', {}, 'Board file'),
+    h('p', { class: 'muted small', style: 'margin-bottom:8px' }, 'Your board saves automatically in this browser. A board file is a backup you can keep in Files or open on another device.'),
+    h('div', { class: 'row' },
+      btn('Save board file (.json)', async () => { await saveNow(); deliver(boardFile(), `${safeName(app.board.name)}.board.json`, back); }, { icon: 'download', cls: 'primary' }),
+      btn('Open board file…', () => $('#fileBoard').click(), { icon: 'folder' }))));
+  body.append(h('div', {}, h('h3', {}, 'Pictures'),
+    h('div', { class: 'row' },
+      btn('This page (.png)', async () => { const cv = await renderPage(app.scene.page, 1920, 1080); cv.toBlob(b => deliver(b, `${safeName(app.board.name)}-p${app.scene.pageIndex + 1}.png`, back), 'image/png'); }, { icon: 'image' }),
+      btn('All pages (.pdf)', async () => {
+        toast('Building PDF…');
+        try {
+          const { jsPDF } = await loadJsPdf();
+          const doc = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1920, 1080], hotfixes: ['px_scaling'] });
+          for (let i = 0; i < app.board.pages.length; i++) {
+            if (i) doc.addPage([1920, 1080], 'landscape');
+            const cv = await renderPage(app.board.pages[i], 1920, 1080);
+            doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 1920, 1080);
+          }
+          deliver(doc.output('blob'), `${safeName(app.board.name)}.pdf`, back);
+        } catch { toast('PDF export needs an internet connection the first time. Try again when online.'); }
+      }, { icon: 'pages' }))));
+});
+$('#fileBoard').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text()), b = data.board || data;
+    if (!Array.isArray(b.pages) || !b.pages.length) throw new Error('bad');
+    b.pages.forEach(p => { p.id = p.id || uid(); p.items = Array.isArray(p.items) ? p.items : []; p.bg = p.bg || { color: '#ffffff', pattern: 'none' }; });
+    const existing = await DB.get('boards', b.id).catch(() => null);
+    if (!b.id || existing) b.id = uid();
+    b.name = b.name || 'Imported lesson'; b.updated = Date.now(); b.created = b.created || Date.now();
+    if (app.rec) { toast('Stop recording before opening another board.'); return; }
+    await saveNow(); closeSheet(); loadBoard(b); await saveNow(); toast(`Opened “${b.name}”.`);
+  } catch { toast('That file is not a Lesson Board file.'); }
+});
+ 
+/* ---------- boards ---------- */
+$('#btnBoards').addEventListener('click', async () => {
+  const body = openSheet('Boards', { wide: true });
+  body.append(h('div', { class: 'row' },
+    btn('New board', async () => {
+      if (app.rec) return toast('Stop recording first.');
+      await saveNow(); closeSheet(); loadBoard(newBoard()); await saveNow(); showHint('New board. Pick a tool and start writing.');
+    }, { icon: 'plus', cls: 'primary' }),
+    btn('Open board file…', () => $('#fileBoard').click(), { icon: 'folder' })));
+  await saveNow();
+  let boards = [];
+  try { boards = await DB.all('boards'); } catch { body.append(h('p', { class: 'muted' }, 'Saved boards are not available in this browser (private browsing or storage blocked). Use Save and export › Save board file to keep your work.')); return; }
+  boards.sort((a, b) => b.updated - a.updated);
+  const list = h('div', { class: 'list' });
+  boards.forEach(b => {
+    const isCur = b.id === app.board.id;
+    const del = btn('Delete', null, { cls: 'danger' });
+    armTwoTap(del, 'Tap again', async () => {
+      await DB.del('boards', b.id).catch(() => {});
+      if (isCur) { const rest = boards.filter(x => x.id !== b.id); loadBoard(rest[0] || newBoard()); await saveNow(); }
+      closeSheet(); $('#btnBoards').click();
+    });
+    list.append(h('div', { class: 'item' },
+      h('div', { class: 'grow' }, h('div', { class: 'name' }, b.name), h('div', { class: 'muted small' }, `${b.pages.length} page${b.pages.length > 1 ? 's' : ''} · edited ${fmtDate(b.updated)}`)),
+      isCur ? h('span', { class: 'badge' }, 'Open now') : btn('Open', async () => { if (app.rec) return toast('Stop recording first.'); closeSheet(); loadBoard(b); }),
+      btn('Duplicate', async () => {
+        const c = clone(b); c.id = uid(); c.name = b.name + ' (copy)'; c.created = c.updated = Date.now();
+        await DB.put('boards', c).catch(() => {}); closeSheet(); $('#btnBoards').click();
+      }),
+      del));
+  });
+  body.append(list);
+});
+ 
+/* ---------- settings ---------- */
+$('#btnSettings').addEventListener('click', async () => {
+  const body = openSheet('Settings');
+  const fmts = videoFormats(), cur = chosenFormat();
+  const save = () => { LS.set('settings', app.settings); };
+  if (fmts.length) {
+    const sel = h('select', { id: 'setFmt', onchange: (e) => { app.settings.fmt = e.target.value; save(); } }, fmts.map(f => h('option', { value: f.id, selected: cur && f.id === cur.id }, `${f.label} — ${f.note}`)));
+    body.append(h('div', { class: 'field' }, h('label', { for: 'setFmt' }, 'Recording format'), sel,
+      h('p', { class: 'muted small' }, 'You can export any recording to the other formats and sizes afterwards.')));
+  } else body.append(h('p', {}, 'This browser cannot record video. Use Safari on iPadOS 14.5 or later.'));
+  const res = h('div', { class: 'seg' }, [720, 1080].map(r => h('button', { 'aria-pressed': String(app.settings.res === r), onclick: (e) => { app.settings.res = r; save(); $$('button', res).forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget))); } }, r + 'p')));
+  body.append(h('div', { class: 'field' }, h('label', {}, 'Recording size'), res));
+  const chk = (id, label, key) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', id, checked: !!app.settings[key], onchange: (e) => { app.settings[key] = e.target.checked; save(); if (key === 'pencilOnly') $('#pencilOnly').checked = e.target.checked; } }), label);
+  body.append(h('div', { class: 'field' }, chk('setCount', 'Count down 3-2-1 before recording', 'countdown'), chk('setPencil', 'Pencil only (ignore finger touches on the board)', 'pencilOnly')));
+  let est = '';
+  try { const e = await navigator.storage?.estimate(); if (e) est = `Using ${fmtSize(e.usage || 0)} of about ${fmtSize(e.quota || 0)} available.`; } catch {}
+  body.append(h('div', {}, h('h3', {}, 'Storage'),
+    h('p', { class: 'muted small' }, `Boards and recordings stay on this iPad, inside Safari. ${est} Clearing Safari website data deletes them, so keep board files and videos you care about in Files or Photos.`),
+    h('div', { class: 'row', style: 'margin-top:8px' }, btn('Ask Safari to keep my data', async () => {
+      try { const ok = await navigator.storage?.persist(); toast(ok ? 'Safari will keep this site’s data.' : 'Safari declined. Save important work to Files.'); } catch { toast('Not supported here.'); }
+    }))));
+  body.append(h('div', {}, h('h3', {}, 'Shortcuts with a keyboard'),
+    h('p', { class: 'muted small' }, 'C code · Space types the next part of a selected code block · P pen · H highlighter · E eraser · V move · L line · A arrow · R rectangle · O ellipse · T text · K laser · ⌘Z undo · ⇧⌘Z redo · ← → pages')));
+});
+ 
+/* ---------- start ---------- */
+function welcomeBoard() {
+  const b = newBoard('Welcome to Lesson Board'), pg = b.pages[0];
+  const T = (text, x, y, size, color) => { const m = measureText(text, size); return { id: uid(), t: 'text', x, y, text, color, size, w: m.w, h: m.h }; };
+  const title = T('Lesson Board', 140, 120, 110, '#111827');
+  const wave = []; for (let i = 0; i <= 60; i++) { const x = 140 + i * (title.w / 60); wave.push([Math.round(x), Math.round(262 + Math.sin(i / 4) * 6), 0.55 + 0.3 * Math.sin(i / 9)]); }
+  pg.items.push(title, { id: uid(), t: 'stroke', tool: 'pen', color: '#e11d48', size: 8, pts: wave },
+    T('1.  Pick a tool on the left and write with Apple Pencil.', 160, 360, 50, '#334155'),
+    T('2.  Tap Record (bottom right) and talk through your board.', 160, 460, 50, '#334155'),
+    T('3.  Tap Stop, then save as MP4, WebM, GIF or audio.', 160, 560, 50, '#334155'),
+    T('Your board saves itself. Use Share to keep a board file.', 160, 700, 40, '#64748b'));
+  const hl = measureText('Record', 50);
+  pg.items.push({ id: uid(), t: 'stroke', tool: 'hl', color: '#eab308', size: 46, pts: [[160 + measureText('2.  Tap ', 50).w, 492, 0.5], [160 + measureText('2.  Tap ', 50).w + hl.w, 492, 0.5]] });
+  pg.items.push({ id: uid(), t: 'arrow', color: '#2563eb', size: 8, x1: 1460, y1: 860, x2: 1760, y2: 1010 });
+  return b;
+}
+async function init() {
+  paintIcons();
+  setColor(app.color); setTool('pen');
+  let board = null;
+  try {
+    const last = LS.get('last', null);
+    if (last) board = await DB.get('boards', last);
+    if (!board) { const all = await DB.all('boards'); all.sort((a, b) => b.updated - a.updated); board = all[0] || null; }
+  } catch { storageOK = false; }
+  const first = !board;
+  if (!board) board = welcomeBoard();
+  loadBoard(board);
+  if (first) await saveNow();
+  if (!storageOK) setSaveState('Not saved — use Save board file', true);
+  new ResizeObserver(layout).observe($('#stage'));
+  window.addEventListener('resize', layout);
+  updateRecUI();
+  const banner = $('#banner');
+  if (!canRecord()) { banner.textContent = 'Recording needs Safari on iPadOS 14.5 or later. Drawing and saving still work.'; banner.hidden = false; }
+  else if (!window.isSecureContext) { banner.textContent = 'Open this page from an https:// address to record your voice. Silent recording still works.'; banner.hidden = false; }
+  if (banner.hidden === false) setTimeout(() => banner.hidden = true, 9000);
+}
+init();
+ 
+</script>
+ 
+ 
+</body></html>
